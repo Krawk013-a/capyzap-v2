@@ -76,7 +76,7 @@ export async function decryptText(encryptedBase64: string, privateKey: CryptoKey
         const decoder = new TextDecoder();
         return decoder.decode(decrypted);
     } catch (err) {
-        console.error("Erro ao descriptografar mensagem:", err);
-        return "⚠️ Erro de Criptografia: Não foi possível ler esta mensagem.";
+        // Console error removido para não poluir o log do usuário, já mostramos na UI
+        return "🔒 Esta mensagem foi criptografada com uma chave antiga e não pode ser lida.";
     }
 }

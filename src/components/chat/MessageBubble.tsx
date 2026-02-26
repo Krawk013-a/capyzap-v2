@@ -20,6 +20,7 @@ export interface Message {
     senderName: string;
   };
   reactions?: { emoji: string; user_ids: string[] }[];
+  is_encrypted?: boolean;
 }
 
 function StatusIcon({ status }: { status?: string }) {
@@ -84,6 +85,8 @@ import { useCrypto } from "@/hooks/useCrypto";
 function DecryptedText({ content, isEncrypted }: { content: string, isEncrypted: boolean }) {
   const { privateKey } = useCrypto();
   const [decryptedText, setDecryptedText] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const LIMIT = 300;
 
   useEffect(() => {
     if (isEncrypted && privateKey && content) {
@@ -97,7 +100,25 @@ function DecryptedText({ content, isEncrypted }: { content: string, isEncrypted:
     return <p className="text-sm text-muted-foreground italic">🔒 Mensagem criptografada...</p>;
   }
 
-  return <p className="text-sm text-foreground whitespace-pre-wrap break-words">{decryptedText || (isEncrypted ? "..." : content)}</p>;
+  const textToShow = decryptedText || (isEncrypted ? "..." : content);
+  const shouldTruncate = textToShow.length > LIMIT;
+  const displayText = shouldTruncate && !isExpanded ? textToShow.slice(0, LIMIT) + "..." : textToShow;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-sm text-foreground whitespace-pre-wrap break-words overflow-hidden min-w-0">
+        {displayText}
+      </p>
+      {shouldTruncate && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="text-[10px] font-bold text-primary uppercase hover:underline text-left w-fit"
+        >
+          {isExpanded ? "Ler menos" : "Ler mais"}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function MessageBubble({
@@ -167,7 +188,7 @@ export function MessageBubble({
         </div>
       )}
       <div
-        className={`relative max-w-[75%] rounded-2xl px-3 py-2 shadow-sm ${isMine
+        className={`relative max-w-[85%] sm:max-w-[75%] rounded-2xl px-3 py-2 shadow-sm break-all min-w-0 ${isMine
           ? "bg-capyzap-bubble-sent rounded-tr-sm"
           : "bg-capyzap-bubble-received rounded-tl-sm"
           }`}
