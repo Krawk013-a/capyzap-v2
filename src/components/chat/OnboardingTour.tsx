@@ -51,7 +51,7 @@ export function OnboardingTour() {
             .eq("user_id", user?.id)
             .maybeSingle();
 
-        if (data && !data.has_seen_tour) {
+        if (data && !(data as any).has_seen_tour) {
             setOpen(true);
         }
     };
@@ -68,7 +68,7 @@ export function OnboardingTour() {
         setOpen(false);
         await supabase
             .from("profiles")
-            .update({ has_seen_tour: true })
+            .update({ has_seen_tour: true } as any)
             .eq("user_id", user?.id);
     };
 

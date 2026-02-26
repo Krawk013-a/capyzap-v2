@@ -1,5 +1,5 @@
 import { Check, CheckCheck, Mic, Play, Pause, Reply, Paperclip, Info, Star } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MessageInfoDialog } from "./MessageInfoDialog";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -76,6 +76,28 @@ function AudioPlayer({ duration, audioUrl, transcription }: { duration?: string;
       )}
     </div>
   );
+}
+
+import { decryptText } from "@/lib/crypto";
+import { useCrypto } from "@/hooks/useCrypto";
+
+function DecryptedText({ content, isEncrypted }: { content: string, isEncrypted: boolean }) {
+  const { privateKey } = useCrypto();
+  const [decryptedText, setDecryptedText] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isEncrypted && privateKey && content) {
+      decryptText(content, privateKey).then(setDecryptedText);
+    } else {
+      setDecryptedText(content);
+    }
+  }, [content, isEncrypted, privateKey]);
+
+  if (isEncrypted && !privateKey) {
+    return <p className="text-sm text-muted-foreground italic">🔒 Mensagem criptografada...</p>;
+  }
+
+  return <p className="text-sm text-foreground whitespace-pre-wrap break-words">{decryptedText || (isEncrypted ? "..." : content)}</p>;
 }
 
 export function MessageBubble({
@@ -205,7 +227,12 @@ export function MessageBubble({
             />
           </div>
         ) : (
-          <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.content}</p>
+          <div className="space-y-1">
+            <DecryptedText
+              content={message.content}
+              isEncrypted={!!(message as any).is_encrypted}
+            />
+          </div>
         )}
 
         <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>

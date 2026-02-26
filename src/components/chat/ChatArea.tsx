@@ -12,6 +12,7 @@ import { useReactions } from "@/hooks/useReactions";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toggleFavoriteSticker } from "@/lib/stickers";
+import { useCrypto } from "@/hooks/useCrypto";
 
 interface ChatAreaProps {
   chatId: string | null;
@@ -35,6 +36,16 @@ export function ChatArea({ chatId, onBack, isOnline, onConversationDeleted, onCo
   const [createdBy, setCreatedBy] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const { getOtherPublicKey } = useCrypto();
+  const [recipientPublicKey, setRecipientPublicKey] = useState<CryptoKey | null>(null);
+
+  useEffect(() => {
+    if (otherUserId && !isGroup) {
+      getOtherPublicKey(otherUserId).then(setRecipientPublicKey);
+    } else {
+      setRecipientPublicKey(null);
+    }
+  }, [otherUserId, isGroup]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -95,7 +106,8 @@ export function ChatArea({ chatId, onBack, isOnline, onConversationDeleted, onCo
 
   const handleSend = (content: string, replyToId?: string) => {
     stopTyping();
-    sendMessage(content, "text", undefined, undefined, replyToId);
+    // Passamos a chave pública se for uma DM segura
+    sendMessage(content, "text", undefined, undefined, replyToId, undefined, recipientPublicKey);
   };
 
   const handleSendAudio = async (blob: Blob, duration: number) => {
@@ -224,7 +236,7 @@ export function ChatArea({ chatId, onBack, isOnline, onConversationDeleted, onCo
                 replyTo: msg.reply_to && msg.reply_to_content ? {
                   id: msg.reply_to,
                   content: msg.reply_to_content,
-                  senderName: msg.reply_to_sender_name || "Desconhecido",
+                  senderName: (msg as any).reply_to_sender_name || "Desconhecido",
                 } : undefined,
                 reactions: (msg.reactions || []).reduce((acc: any[], r: any) => {
                   const existing = acc.find(a => a.emoji === r.emoji);

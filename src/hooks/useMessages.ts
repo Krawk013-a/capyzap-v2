@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { encryptText } from "@/lib/crypto";
 
 export interface ChatMessage {
   id: string;
@@ -17,6 +18,7 @@ export interface ChatMessage {
   reply_to?: string | null;
   reply_to_content?: string | null;
   reply_to_sender_name?: string | null;
+  is_encrypted?: boolean;
   reactions?: { emoji: string; user_id: string }[];
 }
 
@@ -187,17 +189,32 @@ export function useMessages(conversationId: string | null) {
     fileUrl?: string,
     audioDuration?: number,
     replyTo?: string,
-    stickerUrl?: string
+    stickerUrl?: string,
+    encryptionKey?: CryptoKey | null // Novo parâmetro opcional
   ) => {
     if (!conversationId || !user) return;
+
+    let finalContent = content;
+    let isEncrypted = false;
+
+    // Se for DM e tivermos a chave do outro, encriptamos o texto
+    if (type === "text" && content && encryptionKey) {
+      try {
+        finalContent = await encryptText(content, encryptionKey);
+        isEncrypted = true;
+      } catch (err) {
+        console.error("Erro ao encriptar:", err);
+      }
+    }
 
     const insertData: any = {
       conversation_id: conversationId,
       sender_id: user.id,
-      content: type === "text" ? content : (type === "sticker" ? "Figurinha" : (type === "file" ? content : null)),
+      content: type === "text" ? finalContent : (type === "sticker" ? "Figurinhas" : (type === "file" ? content : null)),
       type,
       audio_url: fileUrl || (type === "sticker" ? stickerUrl : null),
       audio_duration: audioDuration || null,
+      is_encrypted: isEncrypted, // Nova flag
     };
     if (replyTo) insertData.reply_to = replyTo;
 
