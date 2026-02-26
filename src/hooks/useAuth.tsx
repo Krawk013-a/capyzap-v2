@@ -29,12 +29,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
-    setProfile(data as Profile | null);
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, user_id, first_name, last_name, avatar_url")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (error) {
+        console.warn("Erro ao buscar perfil básico:", error);
+        return;
+      }
+      setProfile(data as Profile | null);
+    } catch (e) {
+      console.error("Exceção ao buscar perfil:", e);
+    }
   };
 
   useEffect(() => {
