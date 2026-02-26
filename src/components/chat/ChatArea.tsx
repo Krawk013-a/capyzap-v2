@@ -247,6 +247,7 @@ export function ChatArea({ chatId, onBack, isOnline, onConversationDeleted, onCo
                   }
                   return acc;
                 }, []),
+                is_encrypted: msg.is_encrypted,
               }}
               onReact={(emoji) => toggleReaction(msg.id, emoji)}
               onFavorite={handleFavoriteSticker}

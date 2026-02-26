@@ -81,16 +81,25 @@ export function useCrypto() {
      * Busca a chave pública de outro usuário no Supabase.
      */
     const getOtherPublicKey = async (otherUserId: string): Promise<CryptoKey | null> => {
-        const { data } = await (supabase as any)
-            .from("user_public_keys")
-            .select("public_key_jwk")
-            .eq("user_id", otherUserId)
-            .maybeSingle();
+        try {
+            const { data, error } = await (supabase as any)
+                .from("user_public_keys")
+                .select("public_key_jwk")
+                .eq("user_id", otherUserId)
+                .maybeSingle();
 
-        if (data?.public_key_jwk) {
-            return await importKey(data.public_key_jwk, "public");
+            if (error) throw error;
+
+            if (data?.public_key_jwk) {
+                return await importKey(data.public_key_jwk, "public");
+            }
+
+            console.warn(`Chave pública não encontrada para o usuário ${otherUserId}. As mensagens para ele não serão criptografadas.`);
+            return null;
+        } catch (err) {
+            console.error("Erro ao buscar chave pública do destinatário:", err);
+            return null;
         }
-        return null;
     };
 
     return { privateKey, isReady, getOtherPublicKey };

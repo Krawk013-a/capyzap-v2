@@ -210,13 +210,13 @@ export function useMessages(conversationId: string | null) {
     const insertData: any = {
       conversation_id: conversationId,
       sender_id: user.id,
-      content: type === "text" ? finalContent : (type === "sticker" ? "Figurinhas" : (type === "file" ? content : null)),
+      content: type === "text" ? finalContent : (type === "sticker" ? "Figurinha" : (type === "file" ? content : null)),
       type,
       audio_url: fileUrl || (type === "sticker" ? stickerUrl : null),
       audio_duration: audioDuration || null,
-      is_encrypted: isEncrypted, // Nova flag
     };
     if (replyTo) insertData.reply_to = replyTo;
+    if (isEncrypted) insertData.is_encrypted = true;
 
     await supabase.from("messages").insert(insertData);
 
