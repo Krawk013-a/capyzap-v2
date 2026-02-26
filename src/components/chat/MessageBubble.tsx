@@ -1,4 +1,4 @@
-import { Check, CheckCheck, Mic, Play, Pause, Reply, Paperclip, Info } from "lucide-react";
+import { Check, CheckCheck, Mic, Play, Pause, Reply, Paperclip, Info, Star } from "lucide-react";
 import { useState, useRef } from "react";
 import { MessageInfoDialog } from "./MessageInfoDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 export interface Message {
   id: string;
   content: string;
-  type: "text" | "audio" | "image" | "file" | "system";
+  type: "text" | "audio" | "image" | "file" | "system" | "sticker";
   sender: "me" | "other";
   senderName?: string;
   time: string;
@@ -78,7 +78,17 @@ function AudioPlayer({ duration, audioUrl, transcription }: { duration?: string;
   );
 }
 
-export function MessageBubble({ message, onReply, onReact }: { message: Message; onReply?: (msg: Message) => void; onReact?: (emoji: string) => void }) {
+export function MessageBubble({
+  message,
+  onReply,
+  onReact,
+  onFavorite
+}: {
+  message: Message;
+  onReply?: (msg: Message) => void;
+  onReact?: (emoji: string) => void;
+  onFavorite?: (url: string) => void;
+}) {
   const { user } = useAuth();
   const [infoOpen, setInfoOpen] = useState(false);
   const isMine = message.sender === "me";
@@ -105,6 +115,15 @@ export function MessageBubble({ message, onReply, onReact }: { message: Message;
           >
             <Reply className="h-4 w-4 text-muted-foreground" />
           </button>
+          {message.type === "sticker" && onFavorite && (
+            <button
+              onClick={() => onFavorite(message.audioUrl || "")}
+              className="rounded-full p-1.5 hover:bg-accent text-yellow-500"
+              title="Favoritar Figurinha"
+            >
+              <Star className="h-4 w-4 fill-current" />
+            </button>
+          )}
           {onReact && (
             <button
               onClick={() => onReact("👍")}
@@ -143,7 +162,15 @@ export function MessageBubble({ message, onReply, onReact }: { message: Message;
           </div>
         )}
 
-        {message.type === "audio" ? (
+        {message.type === "sticker" ? (
+          <div className="w-[160px] h-[160px] animate-in zoom-in-50 duration-300">
+            <img
+              src={message.audioUrl}
+              alt="Sticker"
+              className="w-full h-full object-contain"
+            />
+          </div>
+        ) : message.type === "audio" ? (
           <AudioPlayer duration={message.audioDuration} audioUrl={message.audioUrl} transcription={message.transcription} />
         ) : message.type === "image" ? (
           <div className="relative overflow-hidden rounded-lg">
@@ -169,6 +196,14 @@ export function MessageBubble({ message, onReply, onReact }: { message: Message;
               <p className="text-[10px] text-muted-foreground">Clique para baixar</p>
             </div>
           </a>
+        ) : (message.type as string) === "sticker" ? (
+          <div className="w-[160px] h-[160px] animate-in zoom-in-50 duration-300">
+            <img
+              src={message.audioUrl}
+              alt="Sticker"
+              className="w-full h-full object-contain"
+            />
+          </div>
         ) : (
           <p className="text-sm text-foreground whitespace-pre-wrap break-words">{message.content}</p>
         )}
@@ -203,6 +238,15 @@ export function MessageBubble({ message, onReply, onReact }: { message: Message;
               title="Responder"
             >
               <Reply className="h-4 w-4 text-muted-foreground" />
+            </button>
+          )}
+          {message.type === "sticker" && onFavorite && (
+            <button
+              onClick={() => onFavorite(message.audioUrl || "")}
+              className="rounded-full p-1.5 hover:bg-accent text-yellow-500"
+              title="Favoritar Figurinha"
+            >
+              <Star className="h-4 w-4 fill-current" />
             </button>
           )}
           {onReact && (

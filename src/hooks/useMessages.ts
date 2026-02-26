@@ -183,19 +183,20 @@ export function useMessages(conversationId: string | null) {
 
   const sendMessage = async (
     content: string,
-    type: "text" | "audio" | "image" | "file" = "text",
+    type: "text" | "audio" | "image" | "file" | "sticker" = "text",
     fileUrl?: string,
     audioDuration?: number,
-    replyTo?: string
+    replyTo?: string,
+    stickerUrl?: string
   ) => {
     if (!conversationId || !user) return;
 
     const insertData: any = {
       conversation_id: conversationId,
       sender_id: user.id,
-      content: type === "text" ? content : (type === "file" ? content : null),
+      content: type === "text" ? content : (type === "sticker" ? "Figurinha" : (type === "file" ? content : null)),
       type,
-      audio_url: fileUrl || null, // Using audio_url as generic file_url for now
+      audio_url: fileUrl || (type === "sticker" ? stickerUrl : null),
       audio_duration: audioDuration || null,
     };
     if (replyTo) insertData.reply_to = replyTo;

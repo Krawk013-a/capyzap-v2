@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { X, Sparkles } from "lucide-react";
 
-export const APP_VERSION = "0.8.0";
+export const APP_VERSION = "0.9.5";
 
 export interface ChangelogVersion {
   version: string;
@@ -11,6 +11,28 @@ export interface ChangelogVersion {
 }
 
 export const CHANGELOG_HISTORY: ChangelogVersion[] = [
+  {
+    version: "0.9.5",
+    date: "26 de Fev, 2026",
+    title: "Figurinhas Pro (Experimental) v0.9.5 🚀",
+    items: [
+      "⭐ Favoritar Figurinhas: Salve qualquer figurinha recebida na sua coleção",
+      "⚡ Performance em Desenvolvimento: Otimização contínua para dispositivos leves",
+      "🧪 Fase Experimental: Recursos sujeitos a ajustes de estabilidade",
+      "🎮 Galeria Pessoal: Figurinhas criadas ficam salvas para envio manual",
+    ]
+  },
+  {
+    version: "0.9.0",
+    date: "26 de Fev, 2026",
+    title: "Figurinhas & Onboarding v0.9.0 🎨",
+    items: [
+      "Sistema de Figurinhas (Stickers)",
+      "Criação automática de figurinhas a partir de fotos",
+      "Favoritar figurinhas de outras pessoas",
+      "Tour interativo de Onboarding (PWA e Notificações)",
+    ]
+  },
   {
     version: "0.8.0",
     date: "26/02/2026",

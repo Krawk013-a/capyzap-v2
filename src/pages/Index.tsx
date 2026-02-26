@@ -4,6 +4,7 @@ import { ChatArea } from "@/components/chat/ChatArea";
 import { NewChatDialog } from "@/components/chat/NewChatDialog";
 import { ProfileDialog } from "@/components/chat/ProfileDialog";
 import { ChangelogDialog } from "@/components/chat/ChangelogDialog";
+import { OnboardingTour } from "@/components/chat/OnboardingTour";
 import { useConversations } from "@/hooks/useConversations";
 import { usePresence } from "@/hooks/usePresence";
 import { useAuth } from "@/hooks/useAuth";
@@ -127,6 +128,7 @@ const Index = () => {
       <NewChatDialog open={newGroupOpen} onClose={() => setNewGroupOpen(false)} onCreated={handleCreated} isGroup />
       <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
       <ChangelogDialog open={changelogOpen} onClose={() => setChangelogOpen(false)} />
+      <OnboardingTour />
     </div>
   );
 };

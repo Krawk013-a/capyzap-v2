@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap');
 
 @layer base {
   :root {
@@ -127,12 +127,15 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) transparent;
   }
+
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
   }
+
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
+
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background-color: hsl(var(--border));
     border-radius: 3px;
@@ -140,10 +143,14 @@
 }
 
 @keyframes typing-dot {
-  0%, 60%, 100% {
+
+  0%,
+  60%,
+  100% {
     transform: translateY(0);
     opacity: 0.4;
   }
+
   30% {
     transform: translateY(-4px);
     opacity: 1;

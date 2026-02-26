@@ -4,6 +4,8 @@ import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import { useTheme } from "next-themes";
 import { type Message } from "./MessageBubble";
+import { StickerPicker } from "./StickerPicker";
+import { Sticker } from "lucide-react";
 
 interface ChatInputProps {
   onSendMessage: (content: string, replyToId?: string) => void;
@@ -12,13 +14,23 @@ interface ChatInputProps {
   onTyping?: () => void;
   replyingTo?: Message | null;
   onCancelReply?: () => void;
+  onSendSticker?: (url: string) => void;
 }
 
-export function ChatInput({ onSendMessage, onSendAudio, onSendFile, onTyping, replyingTo, onCancelReply }: ChatInputProps) {
+export function ChatInput({
+  onSendMessage,
+  onSendAudio,
+  onSendFile,
+  onTyping,
+  replyingTo,
+  onCancelReply,
+  onSendSticker
+}: ChatInputProps) {
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [showStickers, setShowStickers] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -40,9 +52,9 @@ export function ChatInput({ onSendMessage, onSendAudio, onSendFile, onTyping, re
         setShowEmoji(false);
       }
     };
-    if (showEmoji) document.addEventListener("mousedown", handler);
+    if (showEmoji || showStickers) document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [showEmoji]);
+  }, [showEmoji, showStickers]);
 
   const handleSend = () => {
     if (selectedFile) {
@@ -147,6 +159,19 @@ export function ChatInput({ onSendMessage, onSendAudio, onSendFile, onTyping, re
         </div>
       )}
 
+      {/* Sticker Picker */}
+      {showStickers && (
+        <div ref={emojiRef} className="absolute bottom-full left-2 mb-2 z-50">
+          <StickerPicker
+            onSelect={(url) => {
+              onSendSticker?.(url);
+              setShowStickers(false);
+            }}
+            onClose={() => setShowStickers(false)}
+          />
+        </div>
+      )}
+
       {/* Reply preview */}
       {replyingTo && (
         <div className="mb-2 flex items-center gap-2 rounded-lg border-l-[3px] border-primary bg-accent/50 px-3 py-2 animate-in slide-in-from-bottom-2 duration-150">
@@ -207,6 +232,14 @@ export function ChatInput({ onSendMessage, onSendAudio, onSendFile, onTyping, re
             title="Emoji"
           >
             <Smile className="h-5 w-5 text-muted-foreground" />
+          </button>
+
+          <button
+            onClick={() => setShowStickers(!showStickers)}
+            className={`mb-1 rounded-full p-2 hover:bg-accent transition-colors ${showStickers ? "bg-accent text-primary" : ""}`}
+            title="Figurinhas"
+          >
+            <Sticker className="h-5 w-5 text-muted-foreground" />
           </button>
 
           <button

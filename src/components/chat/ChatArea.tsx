@@ -11,6 +11,7 @@ import { useTyping } from "@/hooks/useTyping";
 import { useReactions } from "@/hooks/useReactions";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toggleFavoriteSticker } from "@/lib/stickers";
 
 interface ChatAreaProps {
   chatId: string | null;
@@ -141,6 +142,21 @@ export function ChatArea({ chatId, onBack, isOnline, onConversationDeleted, onCo
     setReplyingTo(msg);
   };
 
+  const handleSendSticker = (url: string) => {
+    sendMessage("", "sticker", url);
+  };
+
+  const handleFavoriteSticker = async (url: string) => {
+    if (!user) return;
+    const isAdded = await toggleFavoriteSticker(url, user.id);
+    if (isAdded) {
+      // Opcional: mostrar um brinde/toast
+      console.log("Figurinha favoritada!");
+    } else {
+      console.log("Figurinha removida dos favoritos.");
+    }
+  };
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Header */}
@@ -221,6 +237,7 @@ export function ChatArea({ chatId, onBack, isOnline, onConversationDeleted, onCo
                 }, []),
               }}
               onReact={(emoji) => toggleReaction(msg.id, emoji)}
+              onFavorite={handleFavoriteSticker}
             />
           ))
         )}
@@ -248,6 +265,7 @@ export function ChatArea({ chatId, onBack, isOnline, onConversationDeleted, onCo
         onSendMessage={handleSend}
         onSendAudio={handleSendAudio}
         onSendFile={handleSendFile}
+        onSendSticker={handleSendSticker}
         onTyping={startTyping}
         replyingTo={replyingTo}
         onCancelReply={() => setReplyingTo(null)}
