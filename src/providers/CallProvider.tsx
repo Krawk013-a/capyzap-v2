@@ -20,7 +20,7 @@ interface CallContextType {
 const CallContext = createContext<CallContextType | undefined>(undefined);
 
 export function CallProvider({ children }: { children: React.ReactNode }) {
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
     const [isCalling, setIsCalling] = useState(false);
     const [isIncomingCall, setIsIncomingCall] = useState(false);
     const [callerId, setCallerId] = useState<string | null>(null);
@@ -31,7 +31,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
     const peerConnection = useRef<RTCPeerConnection | null>(null);
-    const channelRef = useRef<any>(null);
+    const receiveChannelRef = useRef<any>(null);
 
     // Configuração dos servidores STUN (Google)
     const rtcConfig = {
@@ -60,16 +60,28 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         setCallStatus('idle');
     }, [localStream, remoteStream]);
 
-    const setupPeerConnection = useCallback(() => {
+    const sendSignal = useCallback(async (targetId: string, event: string, payload: any) => {
+        const tempChannel = supabase.channel(`calls:${targetId}`);
+        tempChannel.subscribe(async (status) => {
+            if (status === "SUBSCRIBED") {
+                await tempChannel.send({
+                    type: "broadcast",
+                    event,
+                    payload: { ...payload, from: user?.id, to: targetId }
+                });
+                // Podemos remover o canal temporário logo após o envio se não for persistente
+                // Mas para ICE candidates pode ser melhor manter. No momento, removemos para evitar o aviso de fallback.
+                setTimeout(() => supabase.removeChannel(tempChannel), 1000);
+            }
+        });
+    }, [user?.id]);
+
+    const setupPeerConnection = useCallback((targetId: string) => {
         const pc = new RTCPeerConnection(rtcConfig);
 
         pc.onicecandidate = (event) => {
-            if (event.candidate && channelRef.current && callerId) {
-                channelRef.current.send({
-                    type: "broadcast",
-                    event: "call:ice-candidate",
-                    payload: { candidate: event.candidate, to: callerId }
-                });
+            if (event.candidate) {
+                sendSignal(targetId, "call:ice-candidate", { candidate: event.candidate });
             }
         };
 
@@ -79,12 +91,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
         peerConnection.current = pc;
         return pc;
-    }, [callerId]);
+    }, [sendSignal]);
 
     useEffect(() => {
         if (!user) return;
 
-        // Canal de sinalização global para chamadas
+        // Canal de sinalização para RECEBER chamadas
         const channel = supabase.channel(`calls:${user.id}`, {
             config: {
                 broadcast: { self: false },
@@ -93,23 +105,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
         channel
             .on("broadcast", { event: "call:initiate" }, ({ payload }) => {
-                if (callStatus !== 'idle') return; // Já está em outra chamada
+                if (callStatus !== 'idle') return;
                 setCallerId(payload.from);
                 setCallerName(payload.fromName);
                 setIsIncomingCall(true);
                 setCallStatus('ringing');
             })
             .on("broadcast", { event: "call:offer" }, async ({ payload }) => {
-                if (!peerConnection.current) setupPeerConnection();
-                await peerConnection.current?.setRemoteDescription(new RTCSessionDescription(payload.offer));
-                const answer = await peerConnection.current?.createAnswer();
-                await peerConnection.current?.setLocalDescription(answer);
-
-                channel.send({
-                    type: "broadcast",
-                    event: "call:answer",
-                    payload: { answer, to: payload.from }
-                });
+                const pc = setupPeerConnection(payload.from);
+                await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
             })
             .on("broadcast", { event: "call:answer" }, async ({ payload }) => {
                 await peerConnection.current?.setRemoteDescription(new RTCSessionDescription(payload.answer));
@@ -117,16 +121,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             })
             .on("broadcast", { event: "call:ice-candidate" }, async ({ payload }) => {
                 if (payload.candidate) {
-                    await peerConnection.current?.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                    try {
+                        await peerConnection.current?.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                    } catch (e) {
+                        console.error("Erro ao adicionar ICE candidate:", e);
+                    }
                 }
             })
             .on("broadcast", { event: "call:hangup" }, () => {
                 cleanup();
-                toast.info("Chamada encerrada pelo outro usuário.");
+                toast.info("Chamada encerrada.");
             })
             .subscribe();
 
-        channelRef.current = channel;
+        receiveChannelRef.current = channel;
 
         return () => {
             supabase.removeChannel(channel);
@@ -138,29 +146,25 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             setLocalStream(stream);
             setCallerId(targetUserId);
+            setCallerName(targetUserName);
             setIsCalling(true);
             setCallStatus('calling');
 
-            const pc = setupPeerConnection();
+            const pc = setupPeerConnection(targetUserId);
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
-            channelRef.current.send({
-                type: "broadcast",
-                event: "call:initiate",
-                payload: { from: user?.id, fromName: `${user?.user_metadata?.first_name || 'Alguém'}`, to: targetUserId }
+            // Sinaliza o início
+            await sendSignal(targetUserId, "call:initiate", {
+                fromName: `${user?.user_metadata?.first_name || 'Alguém'}`
             });
 
-            // Envia a oferta real
+            // Envia a oferta
             setTimeout(() => {
-                channelRef.current.send({
-                    type: "broadcast",
-                    event: "call:offer",
-                    payload: { offer, from: user?.id, to: targetUserId }
-                });
-            }, 500);
+                sendSignal(targetUserId, "call:offer", { offer });
+            }, 1000);
 
         } catch (err) {
             console.error("Erro ao iniciar chamada:", err);
@@ -173,13 +177,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             setLocalStream(stream);
-            setCallStatus('connected');
 
-            const pc = setupPeerConnection();
+            if (!peerConnection.current || !callerId) return;
+
+            const pc = peerConnection.current;
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            await sendSignal(callerId, "call:answer", { answer });
 
             setIsIncomingCall(false);
             setIsCalling(true);
+            setCallStatus('connected');
         } catch (err) {
             console.error("Erro ao aceitar chamada:", err);
             toast.error("Erro ao acessar microfone.");
@@ -188,23 +199,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     };
 
     const rejectCall = () => {
-        if (channelRef.current && callerId) {
-            channelRef.current.send({
-                type: "broadcast",
-                event: "call:hangup",
-                payload: { to: callerId }
-            });
+        if (callerId) {
+            sendSignal(callerId, "call:hangup", {});
         }
         cleanup();
     };
 
     const endCall = () => {
-        if (channelRef.current && callerId) {
-            channelRef.current.send({
-                type: "broadcast",
-                event: "call:hangup",
-                payload: { to: callerId }
-            });
+        if (callerId) {
+            sendSignal(callerId, "call:hangup", {});
         }
         cleanup();
     };
