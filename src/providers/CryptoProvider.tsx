@@ -94,6 +94,14 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
                 setPrivateKey(priv);
                 setPublicKey(pub);
                 setIsReady(true);
+
+                // Sincronizar public_key com profile se estiver faltando
+                if (!(profile as any)?.public_key) {
+                    await supabase
+                        .from("profiles")
+                        .update({ public_key: JSON.stringify(localKeys.pub) } as any)
+                        .eq("user_id", user.id);
+                }
                 return;
             }
 

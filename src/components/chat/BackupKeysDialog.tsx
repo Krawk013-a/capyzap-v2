@@ -20,10 +20,10 @@ export function BackupKeysDialog({ open, onClose }: BackupKeysDialogProps) {
     const [confirmPassphrase, setConfirmPassphrase] = useState("");
     const [loading, setLoading] = useState(false);
     const { user } = useAuth();
-    const { privateKey } = useCrypto();
+    const { privateKey, publicKey } = useCrypto();
 
     const handleBackup = async () => {
-        if (!privateKey || !user) return;
+        if (!privateKey || !publicKey || !user) return;
         if (passphrase.length < 6) {
             toast.error("A senha deve ter pelo menos 6 caracteres.");
             return;
@@ -36,13 +36,15 @@ export function BackupKeysDialog({ open, onClose }: BackupKeysDialogProps) {
         setLoading(true);
         try {
             const { encryptedKey, salt } = await backupPrivateKey(privateKey, passphrase);
+            const pubJwk = await window.crypto.subtle.exportKey("jwk", publicKey);
 
             const { error } = await supabase
                 .from("profiles")
                 .update({
                     encrypted_private_key: encryptedKey,
-                    key_backup_salt: salt
-                } as any) // Typecast for custom columns if not yet generated
+                    key_backup_salt: salt,
+                    public_key: JSON.stringify(pubJwk)
+                } as any)
                 .eq("user_id", user.id);
 
             if (error) throw error;
