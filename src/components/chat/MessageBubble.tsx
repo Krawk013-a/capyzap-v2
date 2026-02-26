@@ -98,7 +98,18 @@ function DecryptedText({ content, isEncrypted, isMine }: { content: string, isEn
           const parts = content.substring(5).split("|");
           if (parts.length === 2) {
             textToDecrypt = isMine ? parts[1] : parts[0];
+
+            // Se a parte correspondente estiver vazia (ex: mandou sem a chave do outro)
+            if (!textToDecrypt) {
+              setDecryptedText("🔒 Esta mensagem não foi criptografada para o seu dispositivo.");
+              return;
+            }
           }
+        } else if (!isMine && isEncrypted) {
+          // Formato antigo onde só o destinatário (other) conseguiria ler
+          // Se eu sou o remetente (isMine=true), eu não consigo ler
+          setDecryptedText("🔒 Mensagem legível apenas no dispositivo do destinatário.");
+          return;
         }
 
         const result = await decryptText(textToDecrypt, privateKey);

@@ -26,18 +26,33 @@ export function useCrypto() {
         });
     }, []);
 
-    const saveKeyLocally = async (jwk: any) => {
+    const saveKeysLocally = async (privJwk: any, pubJwk: any) => {
         const db = await accessDB("readwrite");
         const tx = db.transaction(STORE_NAME, "readwrite");
-        tx.objectStore(STORE_NAME).put(jwk, KEY_NAME);
+        const store = tx.objectStore(STORE_NAME);
+        store.put(privJwk, KEY_NAME);
+        store.put(pubJwk, "e2ee_public_key");
     };
 
-    const getKeyLocally = async () => {
+    const getKeysLocally = async () => {
         const db = await accessDB("readonly");
-        return new Promise<any>((resolve) => {
+        return new Promise<{ priv: any, pub: any }>((resolve) => {
             const tx = db.transaction(STORE_NAME, "readonly");
-            const req = tx.objectStore(STORE_NAME).get(KEY_NAME);
-            req.onsuccess = () => resolve(req.result);
+            const store = tx.objectStore(STORE_NAME);
+            const reqPriv = store.get(KEY_NAME);
+            const reqPub = store.get("e2ee_public_key");
+
+            let priv: any = null;
+            let pub: any = null;
+
+            reqPriv.onsuccess = () => {
+                priv = reqPriv.result;
+                if (pub !== undefined) resolve({ priv, pub });
+            };
+            reqPub.onsuccess = () => {
+                pub = reqPub.result;
+                if (priv !== undefined) resolve({ priv, pub });
+            };
         });
     };
 
@@ -46,37 +61,32 @@ export function useCrypto() {
 
         const initKeys = async () => {
             try {
-                // 1. Tentar pegar chave local
-                let localJwk = await getKeyLocally();
+                // 1. Tentar pegar chaves locais
+                const localKeys = await getKeysLocally();
 
-                if (localJwk) {
-                    const priv = await importKey(localJwk, "private");
+                if (localKeys.priv && localKeys.pub) {
+                    const priv = await importKey(localKeys.priv, "private");
+                    const pub = await importKey(localKeys.pub, "public");
                     setPrivateKey(priv);
-
-                    // Buscar a pública correspondente
-                    const { data } = await (supabase as any)
-                        .from("user_public_keys")
-                        .select("public_key_jwk")
-                        .eq("user_id", user.id)
-                        .maybeSingle();
-
-                    if (data?.public_key_jwk) {
-                        const pub = await importKey(data.public_key_jwk, "public");
-                        setPublicKey(pub);
-                    }
-
+                    setPublicKey(pub);
                     setIsReady(true);
+
+                    // Garantir que o Supabase está atualizado
+                    await (supabase as any)
+                        .from("user_public_keys")
+                        .upsert({ user_id: user.id, public_key_jwk: localKeys.pub });
+
                     return;
                 }
 
-                // 2. Se não tem local, gera um par novo
+                // 2. Se não tem par completo local, gera um novo
                 console.log("Gerando novo par de chaves E2EE...");
                 const pair = await generateKeyPair();
                 const privJwk = await exportKey(pair.privateKey);
                 const pubJwk = await exportKey(pair.publicKey);
 
-                // 3. Salva privada no PC e pública no Supabase
-                await saveKeyLocally(privJwk);
+                // 3. Salva localmente e no Supabase
+                await saveKeysLocally(privJwk, pubJwk);
                 await (supabase as any)
                     .from("user_public_keys")
                     .upsert({ user_id: user.id, public_key_jwk: pubJwk });

@@ -198,20 +198,14 @@ export function useMessages(conversationId: string | null) {
     let finalContent = content;
     let isEncrypted = false;
 
-    // Se for DM e tivermos a chave do outro, encriptamos o texto
+    // Se for DM e tivermos a chave do outro ou a nossa, encriptamos o texto
     if (type === "text" && content && (encryptionKey || ownPublicKey)) {
       try {
-        const encForOther = encryptionKey ? await encryptText(content, encryptionKey) : null;
-        const encForMe = ownPublicKey ? await encryptText(content, ownPublicKey) : null;
+        const encForOther = encryptionKey ? await encryptText(content, encryptionKey) : "";
+        const encForMe = ownPublicKey ? await encryptText(content, ownPublicKey) : "";
 
-        if (encForOther && encForMe) {
+        if (encForOther || encForMe) {
           finalContent = `E2EE:${encForOther}|${encForMe}`;
-          isEncrypted = true;
-        } else if (encForOther) {
-          finalContent = encForOther;
-          isEncrypted = true;
-        } else if (encForMe) {
-          finalContent = encForMe;
           isEncrypted = true;
         }
       } catch (err) {
