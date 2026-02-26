@@ -30,10 +30,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
+    const statusRef = useRef<'idle' | 'calling' | 'ringing' | 'connected' | 'ended'>('idle');
     const peerConnection = useRef<RTCPeerConnection | null>(null);
     const activeSendChannel = useRef<any>(null);
 
-    // Configuração dos servidores STUN (Google)
+    // Sincroniza o ref com o estado para uso em listeners (evita re-subscrição de canais)
+    useEffect(() => {
+        statusRef.current = callStatus;
+    }, [callStatus]);
+
     const rtcConfig = {
         iceServers: [
             { urls: "stun:stun.l.google.com:19302" },
@@ -142,8 +147,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         channel
             .on("broadcast", { event: "call:initiate" }, ({ payload }) => {
                 console.log("[VoIP] Chamada recebida via broadcast!", payload);
-                if (callStatus !== 'idle') {
-                    console.log("[VoIP] Já estou em uma chamada ou estado não-idle, ignorando novo initiate.");
+                if (statusRef.current !== 'idle') {
+                    console.log("[VoIP] Já estou em uma chamada ou estado não-idle, ignorando novo initiate.", statusRef.current);
                     return;
                 }
                 setCallerId(payload.from);
@@ -152,15 +157,29 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                 setCallStatus('ringing');
             })
             .on("broadcast", { event: "call:offer" }, async ({ payload }) => {
-                console.log("Oferta recebida de:", payload.from);
+                console.log("[VoIP] Oferta recebida de:", payload.from, payload);
+
+                // Fallback: Se o initiate falhou ou o canal resetou no meio
+                if (statusRef.current === 'idle') {
+                    console.log("[VoIP] Detectada oferta sem sinal de início prévio. Ativando UI...");
+                    setCallerId(payload.from);
+                    setCallerName(payload.fromName || "Alguém");
+                    setIsIncomingCall(true);
+                    setCallStatus('ringing');
+                }
+
                 const pc = setupPeerConnection(payload.from);
                 await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
             })
             .on("broadcast", { event: "call:answer" }, async ({ payload }) => {
-                console.log("Resposta recebida!");
+                console.log("[VoIP] Resposta recebida!");
                 if (peerConnection.current) {
-                    await peerConnection.current.setRemoteDescription(new RTCSessionDescription(payload.answer));
-                    setCallStatus('connected');
+                    try {
+                        await peerConnection.current.setRemoteDescription(new RTCSessionDescription(payload.answer));
+                        setCallStatus('connected');
+                    } catch (e) {
+                        console.error("[VoIP] Erro ao setar answer:", e);
+                    }
                 }
             })
             .on("broadcast", { event: "call:ice-candidate" }, async ({ payload }) => {
@@ -173,15 +192,19 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                 }
             })
             .on("broadcast", { event: "call:hangup" }, () => {
+                console.log("[VoIP] Hangup recebido.");
                 cleanup();
                 toast.info("Chamada encerrada.");
             })
-            .subscribe();
+            .subscribe((status) => {
+                console.log(`[VoIP] Status do canal de recebimento (${user.id}):`, status);
+            });
 
         return () => {
+            console.log("[VoIP] Removendo canal de recebimento.");
             supabase.removeChannel(channel);
         };
-    }, [user, callStatus, setupPeerConnection, cleanup]);
+    }, [user, setupPeerConnection, cleanup]);
 
     const initiateCall = async (targetUserId: string, targetUserName: string) => {
         try {
