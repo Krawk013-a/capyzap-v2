@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { CryptoProvider } from "@/providers/CryptoProvider";
 import { PWAUpdater } from "@/components/PWAUpdater";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -45,14 +46,16 @@ const App = () => (
         <Toaster />
         <Sonner />
         <AuthProvider>
-          <PWAUpdater />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-              <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
+          <CryptoProvider>
+            <PWAUpdater />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+                <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </CryptoProvider>
         </AuthProvider>
       </TooltipProvider>
     </ThemeProvider>
