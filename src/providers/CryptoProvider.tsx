@@ -87,6 +87,7 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
         try {
             // 1. Tentar pegar chaves locais
             const localKeys = await getKeysLocally();
+            console.log("[Crypto] Chaves locais:", !!localKeys.priv);
 
             if (localKeys.priv && localKeys.pub) {
                 const priv = await importKey(localKeys.priv, "private");
@@ -97,6 +98,7 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
 
                 // Sincronizar public_key com profile se estiver faltando
                 if (!(profile as any)?.public_key) {
+                    console.log("[Crypto] Sincronizando chave pública com o perfil...");
                     await supabase
                         .from("profiles")
                         .update({ public_key: JSON.stringify(localKeys.pub) } as any)
@@ -106,7 +108,10 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
             }
 
             // 2. Se não tem local, mas tem backup no servidor
-            if ((profile as any)?.encrypted_private_key) {
+            const hasBackup = !!(profile as any)?.encrypted_private_key;
+            console.log("[Crypto] Backup no servidor encontrado:", hasBackup);
+
+            if (hasBackup) {
                 setShowRestoreDialog(true);
                 return;
             }

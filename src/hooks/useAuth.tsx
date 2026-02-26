@@ -8,6 +8,9 @@ interface Profile {
   first_name: string;
   last_name: string;
   avatar_url: string | null;
+  encrypted_private_key: string | null;
+  key_backup_salt: string | null;
+  public_key: string | null;
 }
 
 interface AuthContextType {
@@ -32,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, user_id, first_name, last_name, avatar_url")
+        .select("id, user_id, first_name, last_name, avatar_url, encrypted_private_key, key_backup_salt, public_key")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -40,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn("Erro ao buscar perfil básico:", error);
         return;
       }
-      setProfile(data as Profile | null);
+      setProfile((data as unknown) as Profile | null);
     } catch (e) {
       console.error("Exceção ao buscar perfil:", e);
     }

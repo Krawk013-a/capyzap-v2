@@ -78,28 +78,31 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     const sendSignal = useCallback(async (targetId: string, event: string, payload: any) => {
         const channel = getSendChannel(targetId);
+        const fullPayload = { ...payload, from: user?.id, fromName: `${profile?.first_name || "Alguém"}`, to: targetId };
 
-        // Se já estiver inscrito, manda direto
-        if (channel.state === 'joined') {
-            await channel.send({
+        console.log(`[VoIP] Enviando sinal: ${event}`, fullPayload);
+
+        // Função interna para enviar
+        const doSend = async () => {
+            const resp = await channel.send({
                 type: "broadcast",
                 event,
-                payload: { ...payload, from: user?.id, to: targetId }
+                payload: fullPayload
             });
-            return;
-        }
+            console.log(`[VoIP] Resposta do envio (${event}):`, resp);
+        };
 
-        // Senão inscreve e manda
-        channel.subscribe(async (status) => {
-            if (status === "SUBSCRIBED") {
-                await channel.send({
-                    type: "broadcast",
-                    event,
-                    payload: { ...payload, from: user?.id, to: targetId }
-                });
-            }
-        });
-    }, [user?.id, getSendChannel]);
+        if (channel.state === 'joined') {
+            await doSend();
+        } else {
+            channel.subscribe(async (status) => {
+                console.log(`[VoIP] Status da inscrição para envio (${targetId}):`, status);
+                if (status === "SUBSCRIBED") {
+                    await doSend();
+                }
+            });
+        }
+    }, [user?.id, profile, getSendChannel]);
 
     const setupPeerConnection = useCallback((targetId: string) => {
         if (peerConnection.current) return peerConnection.current;
@@ -138,9 +141,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
         channel
             .on("broadcast", { event: "call:initiate" }, ({ payload }) => {
-                if (callStatus !== 'idle') return;
+                console.log("[VoIP] Chamada recebida via broadcast!", payload);
+                if (callStatus !== 'idle') {
+                    console.log("[VoIP] Já estou em uma chamada ou estado não-idle, ignorando novo initiate.");
+                    return;
+                }
                 setCallerId(payload.from);
-                setCallerName(payload.fromName);
+                setCallerName(payload.fromName || "Alguém");
                 setIsIncomingCall(true);
                 setCallStatus('ringing');
             })
