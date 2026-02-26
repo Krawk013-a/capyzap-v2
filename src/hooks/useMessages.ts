@@ -190,7 +190,8 @@ export function useMessages(conversationId: string | null) {
     audioDuration?: number,
     replyTo?: string,
     stickerUrl?: string,
-    encryptionKey?: CryptoKey | null // Novo parâmetro opcional
+    encryptionKey?: CryptoKey | null, // Chave do destinatário
+    ownPublicKey?: CryptoKey | null // Sua própria chave pública
   ) => {
     if (!conversationId || !user) return;
 
@@ -198,10 +199,21 @@ export function useMessages(conversationId: string | null) {
     let isEncrypted = false;
 
     // Se for DM e tivermos a chave do outro, encriptamos o texto
-    if (type === "text" && content && encryptionKey) {
+    if (type === "text" && content && (encryptionKey || ownPublicKey)) {
       try {
-        finalContent = await encryptText(content, encryptionKey);
-        isEncrypted = true;
+        const encForOther = encryptionKey ? await encryptText(content, encryptionKey) : null;
+        const encForMe = ownPublicKey ? await encryptText(content, ownPublicKey) : null;
+
+        if (encForOther && encForMe) {
+          finalContent = `E2EE:${encForOther}|${encForMe}`;
+          isEncrypted = true;
+        } else if (encForOther) {
+          finalContent = encForOther;
+          isEncrypted = true;
+        } else if (encForMe) {
+          finalContent = encForMe;
+          isEncrypted = true;
+        }
       } catch (err) {
         console.error("Erro ao encriptar:", err);
       }

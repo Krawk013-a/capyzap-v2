@@ -36,7 +36,7 @@ export function ChatArea({ chatId, onBack, isOnline, onConversationDeleted, onCo
   const [createdBy, setCreatedBy] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const { getOtherPublicKey } = useCrypto();
+  const { getOtherPublicKey, publicKey } = useCrypto();
   const [recipientPublicKey, setRecipientPublicKey] = useState<CryptoKey | null>(null);
 
   useEffect(() => {
@@ -107,7 +107,7 @@ export function ChatArea({ chatId, onBack, isOnline, onConversationDeleted, onCo
   const handleSend = (content: string, replyToId?: string) => {
     stopTyping();
     // Passamos a chave pública se for uma DM segura
-    sendMessage(content, "text", undefined, undefined, replyToId, undefined, recipientPublicKey);
+    sendMessage(content, "text", undefined, undefined, replyToId, undefined, recipientPublicKey, publicKey);
   };
 
   const handleSendAudio = async (blob: Blob, duration: number) => {

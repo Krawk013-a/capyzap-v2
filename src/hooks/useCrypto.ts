@@ -13,6 +13,7 @@ const KEY_NAME = "e2ee_private_key";
 export function useCrypto() {
     const { user } = useAuth();
     const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
+    const [publicKey, setPublicKey] = useState<CryptoKey | null>(null);
     const [isReady, setIsReady] = useState(false);
 
     // Salva/Recupera do IndexedDB (Seguro, pois não sai do dispositivo)
@@ -51,6 +52,19 @@ export function useCrypto() {
                 if (localJwk) {
                     const priv = await importKey(localJwk, "private");
                     setPrivateKey(priv);
+
+                    // Buscar a pública correspondente
+                    const { data } = await (supabase as any)
+                        .from("user_public_keys")
+                        .select("public_key_jwk")
+                        .eq("user_id", user.id)
+                        .maybeSingle();
+
+                    if (data?.public_key_jwk) {
+                        const pub = await importKey(data.public_key_jwk, "public");
+                        setPublicKey(pub);
+                    }
+
                     setIsReady(true);
                     return;
                 }
@@ -68,6 +82,7 @@ export function useCrypto() {
                     .upsert({ user_id: user.id, public_key_jwk: pubJwk });
 
                 setPrivateKey(pair.privateKey);
+                setPublicKey(pair.publicKey);
                 setIsReady(true);
             } catch (err) {
                 console.error("Falha ao inicializar E2EE:", err);
@@ -102,5 +117,5 @@ export function useCrypto() {
         }
     };
 
-    return { privateKey, isReady, getOtherPublicKey };
+    return { privateKey, publicKey, isReady, getOtherPublicKey };
 }

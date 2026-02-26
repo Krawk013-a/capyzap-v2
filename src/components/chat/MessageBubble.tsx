@@ -82,19 +82,34 @@ function AudioPlayer({ duration, audioUrl, transcription }: { duration?: string;
 import { decryptText } from "@/lib/crypto";
 import { useCrypto } from "@/hooks/useCrypto";
 
-function DecryptedText({ content, isEncrypted }: { content: string, isEncrypted: boolean }) {
+function DecryptedText({ content, isEncrypted, isMine }: { content: string, isEncrypted: boolean, isMine: boolean }) {
   const { privateKey } = useCrypto();
   const [decryptedText, setDecryptedText] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const LIMIT = 300;
 
   useEffect(() => {
-    if (isEncrypted && privateKey && content) {
-      decryptText(content, privateKey).then(setDecryptedText);
-    } else {
-      setDecryptedText(content);
-    }
-  }, [content, isEncrypted, privateKey]);
+    const handleDecrypt = async () => {
+      if (isEncrypted && privateKey && content) {
+        let textToDecrypt = content;
+
+        // Novo formato: E2EE:cifra_destinatario|cifra_remetente
+        if (content.startsWith("E2EE:")) {
+          const parts = content.substring(5).split("|");
+          if (parts.length === 2) {
+            textToDecrypt = isMine ? parts[1] : parts[0];
+          }
+        }
+
+        const result = await decryptText(textToDecrypt, privateKey);
+        setDecryptedText(result);
+      } else {
+        setDecryptedText(content);
+      }
+    };
+
+    handleDecrypt();
+  }, [content, isEncrypted, privateKey, isMine]);
 
   if (isEncrypted && !privateKey) {
     return <p className="text-sm text-muted-foreground italic">🔒 Mensagem criptografada...</p>;
@@ -105,7 +120,7 @@ function DecryptedText({ content, isEncrypted }: { content: string, isEncrypted:
   const displayText = shouldTruncate && !isExpanded ? textToShow.slice(0, LIMIT) + "..." : textToShow;
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1 min-w-0">
       <p className="text-sm text-foreground whitespace-pre-wrap break-words overflow-hidden min-w-0">
         {displayText}
       </p>
@@ -251,7 +266,8 @@ export function MessageBubble({
           <div className="space-y-1">
             <DecryptedText
               content={message.content}
-              isEncrypted={!!(message as any).is_encrypted}
+              isEncrypted={!!message.is_encrypted}
+              isMine={isMine}
             />
           </div>
         )}
