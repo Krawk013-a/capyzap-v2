@@ -3,12 +3,23 @@ import { useCall } from "@/providers/CallProvider";
 import { Phone, PhoneOff, Mic, MicOff, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRef, useEffect } from "react";
 
 export function VoiceCallOverlay() {
     const {
         isCalling, isIncomingCall, callerName, callStatus,
-        acceptCall, rejectCall, endCall
+        acceptCall, rejectCall, endCall, remoteStream
     } = useCall();
+
+    const audioRef = useRef<HTMLAudioElement>(null);
+
+    useEffect(() => {
+        if (audioRef.current && remoteStream) {
+            console.log("Anexando stream remoto ao elemento de áudio...");
+            audioRef.current.srcObject = remoteStream;
+            audioRef.current.play().catch(e => console.error("Erro ao dar play no áudio:", e));
+        }
+    }, [remoteStream]);
 
     if (!isCalling && !isIncomingCall) return null;
 
@@ -76,6 +87,8 @@ export function VoiceCallOverlay() {
                         )}
                     </div>
                 </div>
+                {/* Audio invisível para a saída de voz */}
+                <audio ref={audioRef} autoPlay style={{ display: 'none' }} />
             </motion.div>
         </AnimatePresence>
     );
