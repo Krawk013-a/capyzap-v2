@@ -1,4 +1,4 @@
-import { ArrowLeft, MoreVertical, Users } from "lucide-react";
+import { ArrowLeft, MoreVertical, Users, Phone } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageBubble, type Message } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toggleFavoriteSticker } from "@/lib/stickers";
 import { useCrypto } from "@/hooks/useCrypto";
+import { useCall } from "@/providers/CallProvider";
 
 interface ChatAreaProps {
   chatId: string | null;
@@ -38,6 +39,7 @@ export function ChatArea({ chatId, onBack, isOnline, onConversationDeleted, onCo
   const [optionsOpen, setOptionsOpen] = useState(false);
   const { getOtherPublicKey, publicKey } = useCrypto();
   const [recipientPublicKey, setRecipientPublicKey] = useState<CryptoKey | null>(null);
+  const { initiateCall, callStatus } = useCall();
 
   useEffect(() => {
     if (otherUserId && !isGroup) {
@@ -197,6 +199,15 @@ export function ChatArea({ chatId, onBack, isOnline, onConversationDeleted, onCo
             <p className="text-[10px] text-muted-foreground">offline</p>
           )}
         </div>
+        {!isGroup && (
+          <button
+            className={`rounded-full p-2 hover:bg-accent ${callStatus !== 'idle' ? 'text-primary animate-pulse' : 'text-muted-foreground'}`}
+            onClick={() => otherUserId && initiateCall(otherUserId, chatName)}
+            title="Chamada de voz"
+          >
+            <Phone className="h-5 w-5" />
+          </button>
+        )}
         <button className="rounded-full p-2 hover:bg-accent" onClick={() => setOptionsOpen(true)}>
           <MoreVertical className="h-5 w-5 text-muted-foreground" />
         </button>

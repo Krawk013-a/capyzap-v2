@@ -6,7 +6,9 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { CryptoProvider } from "@/providers/CryptoProvider";
+import { CallProvider } from "@/providers/CallProvider";
 import { PWAUpdater } from "@/components/PWAUpdater";
+import { VoiceCallOverlay } from "@/components/chat/VoiceCallOverlay";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
@@ -47,14 +49,17 @@ const App = () => (
         <Sonner />
         <AuthProvider>
           <CryptoProvider>
-            <PWAUpdater />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-                <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
+            <CallProvider>
+              <PWAUpdater />
+              <VoiceCallOverlay />
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+                  <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </BrowserRouter>
+            </CallProvider>
           </CryptoProvider>
         </AuthProvider>
       </TooltipProvider>
