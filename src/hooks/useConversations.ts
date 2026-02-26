@@ -10,6 +10,8 @@ export interface ConversationWithDetails {
   updated_at: string;
   last_message: string | null;
   last_message_time: string | null;
+  last_message_sender_id?: string | null;
+  is_encrypted?: boolean;
   unread_count: number;
   other_user_name: string | null;
   other_user_id: string | null;
@@ -58,7 +60,7 @@ export function useConversations() {
         // Last message
         const { data: lastMsg } = await supabase
           .from("messages")
-          .select("content, type, created_at, sender_id")
+          .select("content, type, created_at, sender_id, is_encrypted")
           .eq("conversation_id", conv.id)
           .order("created_at", { ascending: false })
           .limit(1)
@@ -108,6 +110,8 @@ export function useConversations() {
           updated_at: conv.updated_at,
           last_message: lastMessageContent,
           last_message_time: lastMsg ? (lastMsg as any).created_at : null,
+          last_message_sender_id: lastMsg ? (lastMsg as any).sender_id : null,
+          is_encrypted: lastMsg ? (lastMsg as any).is_encrypted : false,
           unread_count: 0,
           other_user_name: otherUserName,
           other_user_id: otherUserId,

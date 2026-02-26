@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Plus, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,6 +11,8 @@ import { ChangelogBanner, VersionFooter } from "./ChangelogBanner";
 import capyzapLogo from "@/assets/capyzap-logo.png";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useCrypto } from "@/hooks/useCrypto";
+import { decryptText } from "@/lib/crypto";
 
 interface ChatSidebarProps {
   conversations: ConversationWithDetails[];
@@ -22,6 +24,49 @@ interface ChatSidebarProps {
   onOpenChangelog: () => void;
   loading: boolean;
   isOnline: (userId: string | null) => boolean;
+}
+
+function LastMessagePreview({ content, isEncrypted, isMine }: { content: string | null, isEncrypted?: boolean, isMine: boolean }) {
+  const { privateKey } = useCrypto();
+  const [decryptedText, setDecryptedText] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleDecrypt = async () => {
+      if (isEncrypted && privateKey && content) {
+        let textToDecrypt = content;
+
+        if (content.startsWith("E2EE:")) {
+          const parts = content.substring(5).split("|");
+          if (parts.length === 2) {
+            textToDecrypt = isMine ? parts[1] : parts[0];
+            if (!textToDecrypt) {
+              setDecryptedText("🔒 Mensagem criptografada");
+              return;
+            }
+          }
+        }
+
+        const result = await decryptText(textToDecrypt, privateKey);
+        if (result.startsWith("🔒 Esta mensagem")) {
+          setDecryptedText("🔒 Mensagem protegida");
+        } else {
+          setDecryptedText(result);
+        }
+      } else {
+        setDecryptedText(content);
+      }
+    };
+
+    handleDecrypt();
+  }, [content, isEncrypted, privateKey, isMine]);
+
+  const display = decryptedText || (isEncrypted ? "..." : content || "Nenhuma mensagem");
+
+  return (
+    <span className="text-sm text-muted-foreground truncate">
+      {display}
+    </span>
+  );
 }
 
 export function ChatSidebar({ conversations, activeChat, onSelectChat, onNewChat, onNewGroup, onEditProfile, onOpenChangelog, loading, isOnline }: ChatSidebarProps) {
@@ -128,9 +173,11 @@ export function ChatSidebar({ conversations, activeChat, onSelectChat, onNewChat
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground truncate">
-                      {conv.last_message || "Nenhuma mensagem"}
-                    </span>
+                    <LastMessagePreview
+                      content={conv.last_message}
+                      isEncrypted={conv.is_encrypted}
+                      isMine={conv.last_message_sender_id === profile?.user_id}
+                    />
                     {conv.unread_count > 0 && (
                       <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground">
                         {conv.unread_count}
