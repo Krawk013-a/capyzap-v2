@@ -32,9 +32,11 @@ export function StickerPicker({ onSelect, onClose }: StickerPickerProps) {
     }, [user]);
 
     const fetchStickers = async () => {
+        if (!user) return;
         const { data } = await (supabase as any)
             .from("stickers")
             .select("id, url")
+            .eq("creator_id", user.id)
             .order("created_at", { ascending: false })
             .limit(50);
         if (data) setStickers(data);
@@ -83,7 +85,7 @@ export function StickerPicker({ onSelect, onClose }: StickerPickerProps) {
 
             <Tabs defaultValue="all" className="flex-1 flex flex-col">
                 <TabsList className="grid grid-cols-2 mx-3 mt-2">
-                    <TabsTrigger value="all" className="text-xs">Todas</TabsTrigger>
+                    <TabsTrigger value="all" className="text-xs">Minhas</TabsTrigger>
                     <TabsTrigger value="favs" className="text-xs flex items-center gap-1">
                         <Star className="h-3 w-3" /> Favoritas
                     </TabsTrigger>
