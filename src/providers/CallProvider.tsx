@@ -35,6 +35,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const activeSendChannel = useRef<any>(null);
     const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
     const isRemoteDescriptionSet = useRef<boolean>(false);
+    const signalQueue = useRef<Promise<any>>(Promise.resolve());
 
     // Refs para dados de usuário para estabilizar sinalização
     const userRef = useRef(user);
@@ -111,55 +112,57 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const sendSignal = useCallback(async (targetId: string, event: string, payload: any) => {
-        const channel = getSendChannel(targetId);
-        const currentUserId = userRef.current?.id;
-        const currentProfile = profileRef.current;
-        const fullPayload = { ...payload, from: currentUserId, fromName: `${currentProfile?.first_name || "Alguém"}`, to: targetId };
+        // Enfileira os sinais para processamento serial
+        const nextInQueue = signalQueue.current.then(async () => {
+            const channel = getSendChannel(targetId);
+            const currentUserId = userRef.current?.id;
+            const currentProfile = profileRef.current;
+            const fullPayload = { ...payload, from: currentUserId, fromName: `${currentProfile?.first_name || "Alguém"}`, to: targetId };
 
-        console.log(`[VoIP] Preparando sinal: ${event} para ${targetId}`);
+            console.log(`[VoIP] Enviando sinal (Queue): ${event} para ${targetId}`);
 
-        return new Promise<void>((resolve, reject) => {
-            const doSend = async () => {
-                try {
-                    const resp = await channel.send({
-                        type: "broadcast",
-                        event,
-                        payload: fullPayload
+            return new Promise<void>((resolve, reject) => {
+                const doSend = async () => {
+                    try {
+                        const resp = await channel.send({
+                            type: "broadcast",
+                            event,
+                            payload: fullPayload
+                        });
+                        console.log(`[VoIP] Sinal ${event} enviado.`);
+                        setTimeout(resolve, 50); // Pequeno gap entre sinais para o servidor respirar
+                    } catch (err) {
+                        console.error(`[VoIP] Erro no push do sinal ${event}:`, err);
+                        reject(err);
+                    }
+                };
+
+                if (channel.state === 'joined') {
+                    doSend();
+                } else {
+                    console.log(`[VoIP] Canal ${targetId} em estado ${channel.state}, aguardando...`);
+                    const timeout = setTimeout(() => {
+                        reject(new Error("Timeout ao esperar canal entrar"));
+                    }, 5000);
+
+                    channel.subscribe((status) => {
+                        if (status === "SUBSCRIBED") {
+                            clearTimeout(timeout);
+                            doSend();
+                        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+                            clearTimeout(timeout);
+                            reject(new Error(`Erro ao entrar no canal: ${status}`));
+                        }
                     });
-                    console.log(`[VoIP] Sinal ${event} enviado com sucesso.`);
-                    resolve();
-                } catch (err) {
-                    console.error(`[VoIP] Erro no push do sinal ${event}:`, err);
-                    reject(err);
                 }
-            };
-
-            if (channel.state === 'joined') {
-                doSend();
-            } else if (subscribingChannels.current.has(targetId)) {
-                // Já estamos tentando inscrever, vamos checar periodicamente
-                const check = setInterval(() => {
-                    if (channel.state === 'joined') {
-                        clearInterval(check);
-                        doSend();
-                    }
-                }, 100);
-            } else {
-                subscribingChannels.current.add(targetId);
-                console.log(`[VoIP] Inscrevendo no canal de envio ${targetId}...`);
-                channel.subscribe((status) => {
-                    if (status === "SUBSCRIBED") {
-                        console.log(`[VoIP] Canal de envio ${targetId} PRONTO.`);
-                        subscribingChannels.current.delete(targetId);
-                        doSend();
-                    } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-                        subscribingChannels.current.delete(targetId);
-                        reject(new Error(`Erro ao entrar no canal: ${status}`));
-                    }
-                });
-            }
+            });
+        }).catch(err => {
+            console.error("[VoIP] Erro na fila de sinais:", err);
         });
-    }, [getSendChannel]); // Dependência estável
+
+        signalQueue.current = nextInQueue;
+        return nextInQueue;
+    }, [getSendChannel]);
 
     const setupPeerConnection = useCallback((targetId: string) => {
         if (peerConnection.current) return peerConnection.current;
@@ -190,18 +193,23 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         return pc;
     }, [sendSignal]);
 
-    const waitForRemoteDescription = async (timeoutMs = 8000): Promise<boolean> => {
+    const waitForRemoteDescription = async (timeoutMs = 15000): Promise<boolean> => {
         if (isRemoteDescriptionSet.current) return true;
 
+        console.log("[VoIP] Aguardando oferta técnica (WebRTC Offer)...");
         return new Promise((resolve) => {
             const startTime = Date.now();
             const check = setInterval(() => {
+                const elapsed = Date.now() - startTime;
                 if (isRemoteDescriptionSet.current) {
                     clearInterval(check);
                     resolve(true);
-                } else if (Date.now() - startTime > timeoutMs) {
+                } else if (elapsed > timeoutMs) {
                     clearInterval(check);
+                    console.warn("[VoIP] TIMEOUT: Oferta não chegou em", timeoutMs, "ms");
                     resolve(false);
+                } else if (elapsed % 3000 < 100) {
+                    console.log(`[VoIP] ...ainda aguardando oferta (${Math.round(elapsed / 1000)}s)`);
                 }
             }, 100);
         });
@@ -231,11 +239,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                 setupPeerConnection(payload.from);
             })
             .on("broadcast", { event: "call:offer" }, async ({ payload }) => {
-                console.log("[VoIP] Oferta recebida de:", payload.from, payload);
+                console.log("[VoIP] OFERTA BROADCAST RECEBIDA de:", payload.from);
 
                 // Fallback: Se o initiate falhou ou o canal resetou no meio
                 if (statusRef.current === 'idle') {
-                    console.log("[VoIP] Detectada oferta sem sinal de início prévio. Ativando UI...");
+                    console.log("[VoIP] Forçando ativação de UI via Oferta...");
                     setCallerId(payload.from);
                     setCallerName(payload.fromName || "Alguém");
                     setIsIncomingCall(true);
@@ -244,16 +252,17 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
                 const pc = setupPeerConnection(payload.from);
                 try {
+                    console.log("[VoIP] Aplicando descrição remota (Oferta)...");
                     await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
                     isRemoteDescriptionSet.current = true;
-                    console.log("[VoIP] Remote description (offer) setado. Processando fila ICE:", iceCandidatesQueue.current.length);
+                    console.log("[VoIP] Oferta técnica aplicada com sucesso. Processando ICE buffer:", iceCandidatesQueue.current.length);
 
                     while (iceCandidatesQueue.current.length > 0) {
                         const candidate = iceCandidatesQueue.current.shift();
                         if (candidate) await pc.addIceCandidate(new RTCIceCandidate(candidate));
                     }
                 } catch (e) {
-                    console.error("[VoIP] Erro ao setar remote description (offer):", e);
+                    console.error("[VoIP] Falha Crítica ao setar oferta técnica:", e);
                 }
             })
             .on("broadcast", { event: "call:answer" }, async ({ payload }) => {
