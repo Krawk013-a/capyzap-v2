@@ -108,10 +108,8 @@ export function ChatArea({ chatId, onBack, isOnline, onConversationDeleted, onCo
 
   const handleSend = (content: string, replyToId?: string) => {
     stopTyping();
-    // Só encriptar se o sistema de criptografia estiver pronto
-    const rKey = cryptoReady ? recipientPublicKey : null;
-    const sKey = cryptoReady ? publicKey : null;
-    sendMessage(content, "text", undefined, undefined, replyToId, undefined, rKey, sKey);
+    // E2EE desativado por enquanto — enviar como texto plano
+    sendMessage(content, "text", undefined, undefined, replyToId, undefined, null, null);
   };
 
   const handleSendAudio = async (blob: Blob, duration: number) => {
