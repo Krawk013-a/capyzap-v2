@@ -13,6 +13,7 @@ interface CryptoContextType {
     publicKey: CryptoKey | null;
     isReady: boolean;
     getOtherPublicKey: (otherUserId: string) => Promise<CryptoKey | null>;
+    setShowRestoreDialog: (show: boolean) => void;
 }
 
 const CryptoContext = createContext<CryptoContextType | undefined>(undefined);
@@ -134,6 +135,10 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
             console.log("[Crypto] Backup no servidor encontrado:", hasBackup);
 
             if (hasBackup) {
+                console.log("[Crypto] Backup remoto encontrado. Ativando diálogo...");
+                import('sonner').then(({ toast }) => {
+                    toast.success("Backup de segurança detectado! Abrindo janela de senha...");
+                });
                 setShowRestoreDialog(true);
                 return;
             }
@@ -217,17 +222,20 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
     };
 
     return (
-        <CryptoContext.Provider value={{ privateKey, publicKey, isReady, getOtherPublicKey }}>
+        <CryptoContext.Provider value={{ privateKey, publicKey, isReady, getOtherPublicKey, setShowRestoreDialog }}>
             {children}
             {showRestoreDialog && (profile as any)?.encrypted_private_key && (
-                <RestoreKeysDialog
-                    open={showRestoreDialog}
-                    encryptedKey={(profile as any).encrypted_private_key}
-                    onRestored={() => {
-                        setShowRestoreDialog(false);
-                        window.location.reload(); // Recarregar para re-inicializar com chaves locais
-                    }}
-                />
+                <>
+                    {console.log("[Crypto] RENDERIZANDO RestoreKeysDialog NA UI")}
+                    <RestoreKeysDialog
+                        open={showRestoreDialog}
+                        encryptedKey={(profile as any).encrypted_private_key}
+                        onRestored={() => {
+                            setShowRestoreDialog(false);
+                            window.location.reload(); // Recarregar para re-inicializar com chaves locais
+                        }}
+                    />
+                </>
             )}
         </CryptoContext.Provider>
     );

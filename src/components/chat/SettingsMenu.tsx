@@ -1,4 +1,4 @@
-import { Settings, UserCircle, Moon, Sun, LogOut, Sparkles, ShieldCheck } from "lucide-react";
+import { Settings, UserCircle, Moon, Sun, LogOut, Sparkles, ShieldCheck, Lock } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +10,8 @@ import { useTheme } from "next-themes";
 import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 import { BackupKeysDialog } from "./BackupKeysDialog";
+import { useCryptoContext } from "@/providers/CryptoProvider";
+import { toast } from "sonner";
 
 interface SettingsMenuProps {
   onEditProfile: () => void;
@@ -18,7 +20,8 @@ interface SettingsMenuProps {
 
 export function SettingsMenu({ onEditProfile, onOpenChangelog }: SettingsMenuProps) {
   const { resolvedTheme, setTheme } = useTheme();
-  const { signOut } = useAuth();
+  const { signOut, profile } = useAuth();
+  const { setShowRestoreDialog, isReady } = useCryptoContext();
   const [showBackupDialog, setShowBackupDialog] = useState(false);
 
   const toggleTheme = () => setTheme(resolvedTheme === "dark" ? "light" : "dark");
@@ -40,6 +43,19 @@ export function SettingsMenu({ onEditProfile, onOpenChangelog }: SettingsMenuPro
             <ShieldCheck className="h-4 w-4" />
             Backup de Segurança
           </DropdownMenuItem>
+
+          {profile?.encrypted_private_key && !isReady && (
+            <DropdownMenuItem
+              onClick={() => {
+                setShowRestoreDialog(true);
+                toast.success("Abrindo restaurador de mensagens...");
+              }}
+              className="cursor-pointer gap-2 bg-primary/10 text-primary font-medium focus:bg-primary/20 focus:text-primary"
+            >
+              <Lock className="h-4 w-4" />
+              Restaurar Mensagens
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={toggleTheme} className="cursor-pointer gap-2">
             {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             {resolvedTheme === "dark" ? "Modo claro" : "Modo escuro"}
