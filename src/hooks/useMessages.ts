@@ -198,18 +198,18 @@ export function useMessages(conversationId: string | null) {
     let finalContent = content;
     let isEncrypted = false;
 
-    // Se for DM e tivermos a chave do outro ou a nossa, encriptamos o texto
-    if (type === "text" && content && (encryptionKey || ownPublicKey)) {
+    // Só encriptar se AMBAS as chaves estiverem disponíveis (destinatário + remetente)
+    // Se apenas uma estiver presente, envia como texto plano para evitar mensagens ilegíveis
+    if (type === "text" && content && encryptionKey && ownPublicKey) {
       try {
-        const encForOther = encryptionKey ? await encryptText(content, encryptionKey) : "";
-        const encForMe = ownPublicKey ? await encryptText(content, ownPublicKey) : "";
+        const encForOther = await encryptText(content, encryptionKey);
+        const encForMe = await encryptText(content, ownPublicKey);
 
-        if (encForOther || encForMe) {
-          finalContent = `E2EE:${encForOther}|${encForMe}`;
-          isEncrypted = true;
-        }
+        finalContent = `E2EE:${encForOther}|${encForMe}`;
+        isEncrypted = true;
       } catch (err) {
         console.error("Erro ao encriptar:", err);
+        // Falha na encriptação → enviar como texto plano
       }
     }
 

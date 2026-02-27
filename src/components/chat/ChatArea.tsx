@@ -37,7 +37,7 @@ export function ChatArea({ chatId, onBack, isOnline, onConversationDeleted, onCo
   const [createdBy, setCreatedBy] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const { getOtherPublicKey, publicKey } = useCrypto();
+  const { getOtherPublicKey, publicKey, isReady: cryptoReady } = useCrypto();
   const [recipientPublicKey, setRecipientPublicKey] = useState<CryptoKey | null>(null);
   const { initiateCall, callStatus } = useCall();
 
@@ -108,8 +108,10 @@ export function ChatArea({ chatId, onBack, isOnline, onConversationDeleted, onCo
 
   const handleSend = (content: string, replyToId?: string) => {
     stopTyping();
-    // Passamos a chave pública se for uma DM segura
-    sendMessage(content, "text", undefined, undefined, replyToId, undefined, recipientPublicKey, publicKey);
+    // Só encriptar se o sistema de criptografia estiver pronto
+    const rKey = cryptoReady ? recipientPublicKey : null;
+    const sKey = cryptoReady ? publicKey : null;
+    sendMessage(content, "text", undefined, undefined, replyToId, undefined, rKey, sKey);
   };
 
   const handleSendAudio = async (blob: Blob, duration: number) => {

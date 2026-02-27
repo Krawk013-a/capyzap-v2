@@ -103,10 +103,7 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
                 public_key: profile.public_key ? "PRESENTE" : "AUSENTE"
             });
 
-            // Debug visual para o usuário
-            import('sonner').then(({ toast }) => {
-                toast.info(`Perfil carregado: ${profile.encrypted_private_key ? 'Com Backup' : 'Sem Backup'}`);
-            });
+
 
             // 1. Tentar pegar chaves locais
             const localKeys = await getKeysLocally();
@@ -136,9 +133,6 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
 
             if (hasBackup) {
                 console.log("[Crypto] Backup remoto encontrado. Ativando diálogo...");
-                import('sonner').then(({ toast }) => {
-                    toast.success("Backup de segurança detectado! Abrindo janela de senha...");
-                });
                 setShowRestoreDialog(true);
                 return;
             }
@@ -226,7 +220,6 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
             {children}
             {showRestoreDialog && (profile as any)?.encrypted_private_key && (
                 <>
-                    {console.log("[Crypto] RENDERIZANDO RestoreKeysDialog NA UI")}
                     <RestoreKeysDialog
                         open={showRestoreDialog}
                         encryptedKey={(profile as any).encrypted_private_key}

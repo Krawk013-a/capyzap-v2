@@ -90,43 +90,57 @@ function DecryptedText({ content, isEncrypted, isMine }: { content: string, isEn
 
   useEffect(() => {
     const handleDecrypt = async () => {
-      if (isEncrypted && privateKey && content) {
-        let textToDecrypt = content;
+      if (!isEncrypted || !content) {
+        setDecryptedText(content);
+        return;
+      }
 
-        // Novo formato: E2EE:cifra_destinatario|cifra_remetente
-        if (content.startsWith("E2EE:")) {
-          const parts = content.substring(5).split("|");
-          if (parts.length === 2) {
-            textToDecrypt = isMine ? parts[1] : parts[0];
+      if (!privateKey) {
+        // Chave ainda não carregou — vai tentar de novo quando privateKey mudar
+        setDecryptedText(null);
+        return;
+      }
 
-            // Se a parte correspondente estiver vazia (ex: mandou sem a chave do outro)
-            if (!textToDecrypt) {
-              setDecryptedText("🔒 Esta mensagem não foi criptografada para o seu dispositivo.");
-              return;
-            }
+      // Novo formato: E2EE:cifra_destinatario|cifra_remetente
+      if (content.startsWith("E2EE:")) {
+        const parts = content.substring(5).split("|");
+        if (parts.length === 2) {
+          const textToDecrypt = isMine ? parts[1] : parts[0];
+
+          // Se a parte correspondente estiver vazia (mandou sem a chave)
+          if (!textToDecrypt || textToDecrypt.trim() === "") {
+            setDecryptedText("🔒 Esta mensagem não foi criptografada para o seu dispositivo.");
+            return;
           }
-        } else if (!isMine && isEncrypted) {
-          // Formato antigo onde só o destinatário (other) conseguiria ler
-          // Se eu sou o remetente (isMine=true), eu não consigo ler
-          setDecryptedText("🔒 Mensagem legível apenas no dispositivo do destinatário.");
+
+          const result = await decryptText(textToDecrypt, privateKey);
+          setDecryptedText(result);
           return;
         }
-
-        const result = await decryptText(textToDecrypt, privateKey);
-        setDecryptedText(result);
-      } else {
-        setDecryptedText(content);
       }
+
+      // Formato antigo (sem E2EE: prefix) — só o destinatário consegue ler
+      if (isMine) {
+        setDecryptedText("🔒 Mensagem legível apenas no dispositivo do destinatário.");
+        return;
+      }
+
+      const result = await decryptText(content, privateKey);
+      setDecryptedText(result);
     };
 
     handleDecrypt();
   }, [content, isEncrypted, privateKey, isMine]);
 
   if (isEncrypted && !privateKey) {
-    return <p className="text-sm text-muted-foreground italic">🔒 Mensagem criptografada...</p>;
+    return <p className="text-sm text-muted-foreground italic">🔒 Carregando chaves de criptografia...</p>;
   }
 
-  const textToShow = decryptedText || (isEncrypted ? "..." : content);
+  if (decryptedText === null && isEncrypted) {
+    return <p className="text-sm text-muted-foreground italic">🔒 Descriptografando...</p>;
+  }
+
+  const textToShow = decryptedText || content;
   const shouldTruncate = textToShow.length > LIMIT;
   const displayText = shouldTruncate && !isExpanded ? textToShow.slice(0, LIMIT) + "..." : textToShow;
 
