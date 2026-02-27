@@ -52,13 +52,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     };
 
     const cleanup = useCallback(() => {
+        console.log("[VoIP] Executando cleanup geral...");
+        // Parar tracks locais
         if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
+            localStream.getTracks().forEach(track => {
+                track.stop();
+                console.log("[VoIP] Track local parado:", track.kind);
+            });
             setLocalStream(null);
         }
-        if (remoteStream) {
-            setRemoteStream(null);
-        }
+
+        setRemoteStream(null);
+
         if (peerConnection.current) {
             peerConnection.current.close();
             peerConnection.current = null;
@@ -69,12 +74,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         }
         iceCandidatesQueue.current = [];
         isRemoteDescriptionSet.current = false;
+
         setIsCalling(false);
         setIsIncomingCall(false);
         setCallerId(null);
         setCallerName(null);
         setCallStatus('idle');
-    }, [localStream, remoteStream]);
+    }, [localStream]); // Mantemos localStream apenas para pará-lo, mas vamos melhorar isso
 
     const getSendChannel = useCallback((targetId: string) => {
         if (activeSendChannel.current && activeSendChannel.current.topic === `calls:${targetId}`) {
@@ -244,10 +250,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             });
 
         return () => {
-            console.log("[VoIP] Removendo canal de recebimento.");
+            console.log("[VoIP] Removendo canal de recebimento definitivo.");
             supabase.removeChannel(channel);
         };
-    }, [user, setupPeerConnection, cleanup]);
+    }, [user, setupPeerConnection]); // REMOVIDO CLIENT-SIDE CLEANUP DAS DEPENDÊNCIAS
 
     const initiateCall = async (targetUserId: string, targetUserName: string) => {
         try {

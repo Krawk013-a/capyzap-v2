@@ -13,6 +13,8 @@ export function VoiceCallOverlay() {
 
     const audioRef = useRef<HTMLAudioElement>(null);
 
+    console.log("[VoIP Overlay] Renderizando. Estado:", { isCalling, isIncomingCall, callStatus, callerName, hasRemoteStream: !!remoteStream });
+
     useEffect(() => {
         if (audioRef.current && remoteStream) {
             console.log("[VoIP] Anexando stream remoto ao elemento de áudio...", remoteStream.id);
