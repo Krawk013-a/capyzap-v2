@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { X, Sparkles } from "lucide-react";
 
-export const APP_VERSION = "0.12.0";
+export const APP_VERSION = "0.12.1";
 
 export interface ChangelogVersion {
   version: string;
@@ -11,6 +11,17 @@ export interface ChangelogVersion {
 }
 
 export const CHANGELOG_HISTORY: ChangelogVersion[] = [
+  {
+    version: "0.12.1",
+    date: "27 de Fev, 2026",
+    title: "Correção de Bugs v0.12.1 🐛🔧",
+    items: [
+      "🔐 Correção de criptografia E2EE: Resolvido problema que impedia contas novas de ler mensagens",
+      "🎨 Privacidade de Figurinhas: Figurinhas agora são visíveis apenas para quem as criou",
+      "📋 Ordenação da Sidebar: Conversas agora seguem ordem cronológica correta",
+      "🧹 Limpeza de logs: Removidos toasts e logs de debug desnecessários",
+    ]
+  },
   {
     version: "0.12.0",
     date: "26 de Fev, 2026",
