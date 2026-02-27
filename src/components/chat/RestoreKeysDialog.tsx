@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,15 +33,15 @@ export function RestoreKeysDialog({ open, encryptedKey, onRestored }: RestoreKey
             // No CryptoProvider, a chave pública já está no Supabase.
             // Vamos assumir que a chave pública pode ser baixada do perfil.
 
-            const { data: profData } = await (window as any).supabase
+            const { data: profData } = await supabase
                 .from("profiles")
                 .select("public_key")
                 .eq("user_id", profile?.user_id)
                 .single();
 
-            if (!profData?.public_key) throw new Error("Chave pública não encontrada no perfil.");
+            if (!profData || !(profData as any).public_key) throw new Error("Chave pública não encontrada no perfil.");
 
-            const publicKeyJwk = JSON.parse(profData.public_key);
+            const publicKeyJwk = JSON.parse((profData as any).public_key);
             const publicKey = await window.crypto.subtle.importKey(
                 "jwk",
                 publicKeyJwk,

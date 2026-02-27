@@ -82,7 +82,7 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
     };
 
     const initKeys = useCallback(async () => {
-        if (!user || authLoading || isInitializing) return;
+        if (!user || authLoading || isInitializing || showRestoreDialog || isReady) return;
 
         // Se temos usuário mas o perfil ainda está nulo (e não estamos em loading),
         // pode ser que o login acabou de acontecer e fetchProfile ainda não terminou.
@@ -171,7 +171,7 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
         } finally {
             setIsInitializing(false);
         }
-    }, [user, profile, isInitializing, authLoading]);
+    }, [user, profile, isInitializing, authLoading, showRestoreDialog, isReady]);
 
     useEffect(() => {
         console.log("[Crypto] useEffect trigger:", {
@@ -181,9 +181,9 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
             isInitializing,
             hasProfile: !!profile
         });
-        if (!user || isReady || authLoading) return;
+        if (!user || isReady || authLoading || showRestoreDialog) return;
         initKeys();
-    }, [user, isReady, initKeys, authLoading, profile]);
+    }, [user, isReady, initKeys, authLoading, profile, showRestoreDialog]);
 
     const getOtherPublicKey = async (otherUserId: string): Promise<CryptoKey | null> => {
         try {
