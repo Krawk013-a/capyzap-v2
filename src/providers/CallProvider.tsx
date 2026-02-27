@@ -82,14 +82,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         setCallStatus('idle');
     }, [localStream]); // Mantemos localStream apenas para pará-lo, mas vamos melhorar isso
 
+    const subscribingChannels = useRef<Set<string>>(new Set());
+
     const getSendChannel = useCallback((targetId: string) => {
-        if (activeSendChannel.current && activeSendChannel.current.topic === `calls:${targetId}`) {
+        const topic = `calls:${targetId}`;
+        if (activeSendChannel.current && activeSendChannel.current.topic === topic) {
             return activeSendChannel.current;
         }
+
+        // Remove anterior apenas se mudou de alvo
         if (activeSendChannel.current) {
             supabase.removeChannel(activeSendChannel.current);
         }
-        const channel = supabase.channel(`calls:${targetId}`);
+
+        console.log(`[VoIP] Criando canal de envio para: ${targetId}`);
+        const channel = supabase.channel(topic);
         activeSendChannel.current = channel;
         return channel;
     }, []);
@@ -98,7 +105,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         const channel = getSendChannel(targetId);
         const fullPayload = { ...payload, from: user?.id, fromName: `${profile?.first_name || "Alguém"}`, to: targetId };
 
-        console.log(`[VoIP] Tentando enviar sinal: ${event} para ${targetId}`);
+        console.log(`[VoIP] Preparando sinal: ${event} para ${targetId}`);
 
         return new Promise<void>((resolve, reject) => {
             const doSend = async () => {
@@ -108,22 +115,35 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                         event,
                         payload: fullPayload
                     });
-                    console.log(`[VoIP] Sinal ${event} enviado. Resposta:`, resp);
+                    console.log(`[VoIP] Sinal ${event} enviado com sucesso.`);
                     resolve();
                 } catch (err) {
-                    console.error(`[VoIP] Erro ao enviar sinal ${event}:`, err);
+                    console.error(`[VoIP] Erro no push do sinal ${event}:`, err);
                     reject(err);
                 }
             };
 
             if (channel.state === 'joined') {
                 doSend();
+            } else if (subscribingChannels.current.has(targetId)) {
+                // Já estamos tentando inscrever, vamos checar periodicamente ou esperar
+                const check = setInterval(() => {
+                    if (channel.state === 'joined') {
+                        clearInterval(check);
+                        doSend();
+                    }
+                }, 100);
             } else {
-                channel.subscribe(async (status) => {
+                subscribingChannels.current.add(targetId);
+                console.log(`[VoIP] Inscrevendo no canal de envio ${targetId}...`);
+                channel.subscribe((status) => {
                     if (status === "SUBSCRIBED") {
+                        console.log(`[VoIP] Canal de envio ${targetId} PRONTO.`);
+                        subscribingChannels.current.delete(targetId);
                         doSend();
                     } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-                        reject(new Error(`Falha na subscrição do canal: ${status}`));
+                        subscribingChannels.current.delete(targetId);
+                        reject(new Error(`Erro ao entrar no canal: ${status}`));
                     }
                 });
             }
@@ -267,21 +287,22 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             const pc = setupPeerConnection(targetUserId);
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-
-            // Sinaliza o início
+            // CRÍTICO: Primeiro avisamos o outro lado
+            console.log("[VoIP] Enviando sinal de início antes da oferta...");
             await sendSignal(targetUserId, "call:initiate", {
                 fromName: `${profile?.first_name || user?.user_metadata?.first_name || 'Alguém'}`
             });
 
+            // Agora criamos a oferta
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
             // Envia a oferta com o nome para redundância
-            setTimeout(() => {
-                sendSignal(targetUserId, "call:offer", {
-                    offer,
-                    fromName: `${profile?.first_name || "Alguém"}`
-                });
-            }, 800);
+            console.log("[VoIP] Enviando oferta WebRTC...");
+            await sendSignal(targetUserId, "call:offer", {
+                offer,
+                fromName: `${profile?.first_name || "Alguém"}`
+            });
 
         } catch (err) {
             console.error("Erro ao iniciar chamada:", err);
