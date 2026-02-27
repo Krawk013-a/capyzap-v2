@@ -46,7 +46,7 @@ export async function saveKeysLocally(privateKey: CryptoKey, publicKey: CryptoKe
 }
 
 export function CryptoProvider({ children }: { children: React.ReactNode }) {
-    const { user, profile } = useAuth();
+    const { user, profile, loading: authLoading } = useAuth();
     const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
     const [publicKey, setPublicKey] = useState<CryptoKey | null>(null);
     const [isReady, setIsReady] = useState(false);
@@ -82,9 +82,25 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
     };
 
     const initKeys = useCallback(async () => {
-        if (!user || isInitializing) return;
+        if (!user || authLoading || isInitializing) return;
+
+        // Se temos usuário mas o perfil ainda está nulo (e não estamos em loading),
+        // pode ser que o login acabou de acontecer e fetchProfile ainda não terminou.
+        // Vamos dar um pequeno fôlego.
+        if (!profile) {
+            console.log("[Crypto] Usuário logado mas perfil ainda não carregado. Aguardando...");
+            return;
+        }
+
         setIsInitializing(true);
         try {
+            console.log("[Crypto] Iniciando análise de chaves E2EE para:", user.email);
+            console.log("[Crypto] Dados do Perfil recebidos:", {
+                hasEncryptedKey: !!profile.encrypted_private_key,
+                hasSalt: !!profile.key_backup_salt,
+                hasPublicKey: !!profile.public_key
+            });
+
             // 1. Tentar pegar chaves locais
             const localKeys = await getKeysLocally();
             console.log("[Crypto] Chaves locais:", !!localKeys.priv);
@@ -117,19 +133,24 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
             }
 
             // 3. Se não tem nada, gera um novo
-            console.log("Gerando novo par de chaves E2EE...");
+            console.log("[Crypto] Nenhuma chave local ou backup remoto encontrado. Gerando novo par de chaves E2EE...");
             const pair = await generateKeyPair();
             const privJwk = await exportKey(pair.privateKey);
             const pubJwk = await exportKey(pair.publicKey);
 
             await saveKeysLocally(pair.privateKey, pair.publicKey);
 
-            // Salvar chave pública no Supabase (seja qual for a tabela que estamos usando)
-            // Aqui usamos profiles para guardar a chave pública agora por simplicidade e sync
-            await supabase
-                .from("profiles")
-                .update({ public_key: JSON.stringify(pubJwk) } as any)
-                .eq("user_id", user.id);
+            // Salvar chave pública no Supabase APENAS se não houver uma lá
+            if (!profile.public_key) {
+                console.log("[Crypto] Salvando nova chave pública no servidor...");
+                await supabase
+                    .from("profiles")
+                    .update({ public_key: JSON.stringify(pubJwk) } as any)
+                    .eq("user_id", user.id);
+            } else {
+                console.warn("[Crypto] Atenção: Chave pública já existia no servidor, mas nenhuma chave privada local ou backup foi encontrado.");
+                console.log("[Crypto] Mantendo chave pública existente para evitar quebra de mensagens antigas.");
+            }
 
             // Mantemos a user_public_keys para retrocompatibilidade se existir
             await (supabase as any)
@@ -144,17 +165,17 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
         } finally {
             setIsInitializing(false);
         }
-    }, [user, profile, isInitializing]);
+    }, [user, profile, isInitializing, authLoading]);
 
     useEffect(() => {
-        if (!user || isReady) return;
+        if (!user || isReady || authLoading) return;
         initKeys();
-    }, [user, isReady, initKeys]);
+    }, [user, isReady, initKeys, authLoading]);
 
     const getOtherPublicKey = async (otherUserId: string): Promise<CryptoKey | null> => {
         try {
             // Primeiro tentar via profiles
-            const { data: profData } = await supabase
+            const { data: profData } = await (supabase as any)
                 .from("profiles")
                 .select("public_key")
                 .eq("user_id", otherUserId)
