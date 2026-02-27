@@ -179,6 +179,23 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         return pc;
     }, [sendSignal]);
 
+    const waitForRemoteDescription = async (timeoutMs = 8000): Promise<boolean> => {
+        if (isRemoteDescriptionSet.current) return true;
+
+        return new Promise((resolve) => {
+            const startTime = Date.now();
+            const check = setInterval(() => {
+                if (isRemoteDescriptionSet.current) {
+                    clearInterval(check);
+                    resolve(true);
+                } else if (Date.now() - startTime > timeoutMs) {
+                    clearInterval(check);
+                    resolve(false);
+                }
+            }, 100);
+        });
+    };
+
     useEffect(() => {
         if (!user) return;
 
@@ -313,29 +330,44 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     const acceptCall = async () => {
         try {
+            console.log("[VoIP] Aceitando chamada, aguardando stream técnico...");
+
+            // Aguarda a oferta remota se ainda não chegou
+            const ready = await waitForRemoteDescription();
+            if (!ready) {
+                console.error("[VoIP] Timeout: Oferta não chegou a tempo.");
+                toast.error("Erro ao conectar: Sinal do outro lado não recebido.");
+                rejectCall();
+                return;
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             setLocalStream(stream);
 
             if (!callerId) {
-                console.error("Erro no aceite: CallerId ausente");
+                console.error("[VoIP] Erro no aceite: CallerId ausente");
                 return;
             }
 
             // Garante que o PC existe
             const pc = setupPeerConnection(callerId);
-            stream.getTracks().forEach(track => pc.addTrack(track, stream));
+            stream.getTracks().forEach(track => {
+                console.log("[VoIP] Adicionando track ao PC:", track.kind);
+                pc.addTrack(track, stream);
+            });
 
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
 
+            console.log("[VoIP] Enviando resposta (answer)...");
             await sendSignal(callerId, "call:answer", { answer });
 
             setIsIncomingCall(false);
             setIsCalling(true);
             setCallStatus('connected');
         } catch (err) {
-            console.error("Erro ao aceitar chamada:", err);
-            toast.error("Erro ao acessar microfone.");
+            console.error("[VoIP] Erro ao aceitar chamada:", err);
+            toast.error("Falha ao atender chamada.");
             rejectCall();
         }
     };
