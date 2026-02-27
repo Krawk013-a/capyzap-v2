@@ -20,6 +20,7 @@ export const CHANGELOG_HISTORY: ChangelogVersion[] = [
       "🎨 Privacidade de Figurinhas: Figurinhas agora são visíveis apenas para quem as criou",
       "📋 Ordenação da Sidebar: Conversas agora seguem ordem cronológica correta",
       "🧹 Limpeza de logs: Removidos toasts e logs de debug desnecessários",
+      "⚠️ Mensagens Antigas: O objetivo desta atualização foi a correção de bugs previstos com a implementação da criptografia E2EE. Mensagens antigas podem continuar criptografadas com a necessidade de uso da chave de descriptografia. Novas mensagens serão criptografadas diretamente pelo Banco de Dados",
     ]
   },
   {
