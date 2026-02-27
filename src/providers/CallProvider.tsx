@@ -43,7 +43,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         iceServers: [
             { urls: "stun:stun.l.google.com:19302" },
             { urls: "stun:stun1.l.google.com:19302" },
+            { urls: "stun:stun2.l.google.com:19302" },
+            { urls: "stun:stun3.l.google.com:19302" },
         ],
+        iceCandidatePoolSize: 10,
     };
 
     const cleanup = useCallback(() => {
@@ -155,6 +158,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                 setCallerName(payload.fromName || "Alguém");
                 setIsIncomingCall(true);
                 setCallStatus('ringing');
+
+                // Pré-configura o PeerConnection para estar pronto para o aceite
+                setupPeerConnection(payload.from);
             })
             .on("broadcast", { event: "call:offer" }, async ({ payload }) => {
                 console.log("[VoIP] Oferta recebida de:", payload.from, payload);
@@ -226,10 +232,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                 fromName: `${profile?.first_name || user?.user_metadata?.first_name || 'Alguém'}`
             });
 
-            // Envia a oferta
+            // Envia a oferta com o nome para redundância
             setTimeout(() => {
-                sendSignal(targetUserId, "call:offer", { offer });
-            }, 1000);
+                sendSignal(targetUserId, "call:offer", {
+                    offer,
+                    fromName: `${profile?.first_name || "Alguém"}`
+                });
+            }, 800);
 
         } catch (err) {
             console.error("Erro ao iniciar chamada:", err);
@@ -243,12 +252,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             setLocalStream(stream);
 
-            if (!peerConnection.current || !callerId) {
-                console.error("Erro no aceite: PC ou CallerId ausente", { pc: !!peerConnection.current, cid: !!callerId });
+            if (!callerId) {
+                console.error("Erro no aceite: CallerId ausente");
                 return;
             }
 
-            const pc = peerConnection.current;
+            // Garante que o PC existe
+            const pc = setupPeerConnection(callerId);
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
             const answer = await pc.createAnswer();

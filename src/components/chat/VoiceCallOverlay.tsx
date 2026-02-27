@@ -15,9 +15,20 @@ export function VoiceCallOverlay() {
 
     useEffect(() => {
         if (audioRef.current && remoteStream) {
-            console.log("Anexando stream remoto ao elemento de áudio...");
+            console.log("[VoIP] Anexando stream remoto ao elemento de áudio...", remoteStream.id);
             audioRef.current.srcObject = remoteStream;
-            audioRef.current.play().catch(e => console.error("Erro ao dar play no áudio:", e));
+
+            // Garantir que o áudio não esteja mudo
+            audioRef.current.muted = false;
+            audioRef.current.volume = 1.0;
+
+            const playPromise = audioRef.current.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(e => {
+                    console.error("[VoIP] Erro ao dar play no áudio automático:", e);
+                    // Tenta play de novo em caso de erro (alguns browsers exigem isso)
+                });
+            }
         }
     }, [remoteStream]);
 
