@@ -33,6 +33,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const statusRef = useRef<'idle' | 'calling' | 'ringing' | 'connected' | 'ended'>('idle');
     const peerConnection = useRef<RTCPeerConnection | null>(null);
     const activeSendChannel = useRef<any>(null);
+    const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
+    const isRemoteDescriptionSet = useRef<boolean>(false);
 
     // Sincroniza o ref com o estado para uso em listeners (evita re-subscrição de canais)
     useEffect(() => {
@@ -65,6 +67,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             supabase.removeChannel(activeSendChannel.current);
             activeSendChannel.current = null;
         }
+        iceCandidatesQueue.current = [];
+        isRemoteDescriptionSet.current = false;
         setIsCalling(false);
         setIsIncomingCall(false);
         setCallerId(null);
@@ -88,28 +92,36 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         const channel = getSendChannel(targetId);
         const fullPayload = { ...payload, from: user?.id, fromName: `${profile?.first_name || "Alguém"}`, to: targetId };
 
-        console.log(`[VoIP] Enviando sinal: ${event}`, fullPayload);
+        console.log(`[VoIP] Tentando enviar sinal: ${event} para ${targetId}`);
 
-        // Função interna para enviar
-        const doSend = async () => {
-            const resp = await channel.send({
-                type: "broadcast",
-                event,
-                payload: fullPayload
-            });
-            console.log(`[VoIP] Resposta do envio (${event}):`, resp);
-        };
-
-        if (channel.state === 'joined') {
-            await doSend();
-        } else {
-            channel.subscribe(async (status) => {
-                console.log(`[VoIP] Status da inscrição para envio (${targetId}):`, status);
-                if (status === "SUBSCRIBED") {
-                    await doSend();
+        return new Promise<void>((resolve, reject) => {
+            const doSend = async () => {
+                try {
+                    const resp = await channel.send({
+                        type: "broadcast",
+                        event,
+                        payload: fullPayload
+                    });
+                    console.log(`[VoIP] Sinal ${event} enviado. Resposta:`, resp);
+                    resolve();
+                } catch (err) {
+                    console.error(`[VoIP] Erro ao enviar sinal ${event}:`, err);
+                    reject(err);
                 }
-            });
-        }
+            };
+
+            if (channel.state === 'joined') {
+                doSend();
+            } else {
+                channel.subscribe(async (status) => {
+                    if (status === "SUBSCRIBED") {
+                        doSend();
+                    } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+                        reject(new Error(`Falha na subscrição do canal: ${status}`));
+                    }
+                });
+            }
+        });
     }, [user?.id, profile, getSendChannel]);
 
     const setupPeerConnection = useCallback((targetId: string) => {
@@ -136,6 +148,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         };
 
         peerConnection.current = pc;
+        iceCandidatesQueue.current = [];
+        isRemoteDescriptionSet.current = false;
         return pc;
     }, [sendSignal]);
 
@@ -175,13 +189,31 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 const pc = setupPeerConnection(payload.from);
-                await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+                try {
+                    await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+                    isRemoteDescriptionSet.current = true;
+                    console.log("[VoIP] Remote description (offer) setado. Processando fila ICE:", iceCandidatesQueue.current.length);
+
+                    while (iceCandidatesQueue.current.length > 0) {
+                        const candidate = iceCandidatesQueue.current.shift();
+                        if (candidate) await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                    }
+                } catch (e) {
+                    console.error("[VoIP] Erro ao setar remote description (offer):", e);
+                }
             })
             .on("broadcast", { event: "call:answer" }, async ({ payload }) => {
                 console.log("[VoIP] Resposta recebida!");
                 if (peerConnection.current) {
                     try {
                         await peerConnection.current.setRemoteDescription(new RTCSessionDescription(payload.answer));
+                        isRemoteDescriptionSet.current = true;
+                        console.log("[VoIP] Remote description (answer) setado. Processando fila ICE:", iceCandidatesQueue.current.length);
+
+                        while (iceCandidatesQueue.current.length > 0) {
+                            const candidate = iceCandidatesQueue.current.shift();
+                            if (candidate) await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
+                        }
                         setCallStatus('connected');
                     } catch (e) {
                         console.error("[VoIP] Erro ao setar answer:", e);
@@ -190,10 +222,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             })
             .on("broadcast", { event: "call:ice-candidate" }, async ({ payload }) => {
                 if (payload.candidate && peerConnection.current) {
-                    try {
-                        await peerConnection.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
-                    } catch (e) {
-                        console.error("Erro ao adicionar ICE candidate:", e);
+                    if (isRemoteDescriptionSet.current) {
+                        try {
+                            await peerConnection.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                        } catch (e) {
+                            console.error("[VoIP] Erro ao adicionar ICE candidate imediato:", e);
+                        }
+                    } else {
+                        console.log("[VoIP] Description remota não pronta. Enfileirando ICE candidate.");
+                        iceCandidatesQueue.current.push(payload.candidate);
                     }
                 }
             })
@@ -276,16 +313,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const rejectCall = () => {
+    const rejectCall = async () => {
         if (callerId) {
-            sendSignal(callerId, "call:hangup", {});
+            await sendSignal(callerId, "call:hangup", {}).catch(e => console.error("Erro ao enviar hangup:", e));
         }
         cleanup();
     };
 
-    const endCall = () => {
+    const endCall = async () => {
         if (callerId) {
-            sendSignal(callerId, "call:hangup", {});
+            await sendSignal(callerId, "call:hangup", {}).catch(e => console.error("Erro ao enviar hangup:", e));
         }
         cleanup();
     };
