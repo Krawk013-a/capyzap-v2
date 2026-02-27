@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { X, Sparkles } from "lucide-react";
 
-export const APP_VERSION = "0.10.0";
+export const APP_VERSION = "0.12.0";
 
 export interface ChangelogVersion {
   version: string;
@@ -11,6 +11,20 @@ export interface ChangelogVersion {
 }
 
 export const CHANGELOG_HISTORY: ChangelogVersion[] = [
+  {
+    version: "0.12.0",
+    date: "26 de Fev, 2026",
+    title: "Ligações, Backup & Controles v0.12.0 📞🔐🎛️",
+    items: [
+      "📞 Chamadas de Voz (Beta): Ligue para seus contatos em tempo real via WebRTC",
+      "🎛️ Controles de Chamada: Mudo, Viva-voz e interface premium de ligação",
+      "🔔 Notificações de Chamada: Receba alertas mesmo com o app em segundo plano",
+      "🔐 Backup de Segurança E2EE: Sincronize suas chaves entre dispositivos",
+      "🔒 Restaurar Mensagens: Recupere suas mensagens criptografadas em novos aparelhos",
+      "🎵 Toques Sonoros: Ringtone ao receber e tom de chamada ao ligar",
+      "🛡️ Tela Sempre Ativa: A tela não apaga durante chamadas",
+    ]
+  },
   {
     version: "0.10.0",
     date: "26 de Fev, 2026",
@@ -62,7 +76,6 @@ export const CHANGELOG_HISTORY: ChangelogVersion[] = [
       "📁 Suporte para envio de fotos e documentos (anexos)",
       "🖼️ Exibição de avatars na barra lateral e cabeçalho do chat",
       "🔄 Atualização instantânea da foto de perfil",
-      "🏎️ Correção de erros 406 e melhorias de estabilidade",
       "📜 Histórico de atualizações acessível pelo menu",
     ],
   },
