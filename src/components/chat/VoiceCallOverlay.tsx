@@ -1,14 +1,15 @@
 import React from "react";
 import { useCall } from "@/providers/CallProvider";
-import { Phone, PhoneOff, Mic, MicOff, User } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Phone, PhoneOff, Mic, MicOff, User, X, Volume1, Volume2 } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRef, useEffect } from "react";
 
 export function VoiceCallOverlay() {
     const {
         isCalling, isIncomingCall, callerName, callStatus,
-        acceptCall, rejectCall, endCall, remoteStream
+        acceptCall, rejectCall, endCall, remoteStream,
+        isMuted, isSpeakerOn, toggleMute, toggleSpeaker
     } = useCall();
 
     const audioRef = useRef<HTMLAudioElement>(null);
@@ -39,69 +40,80 @@ export function VoiceCallOverlay() {
     return (
         <AnimatePresence>
             <motion.div
-                initial={{ opacity: 0, y: 50 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 50 }}
-                className="fixed bottom-6 right-6 z-[100] w-80 overflow-hidden rounded-2xl border bg-card/95 p-6 shadow-2xl backdrop-blur-sm"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
             >
-                <div className="flex flex-col items-center gap-4">
-                    <div className="relative">
-                        <Avatar className="h-20 w-20 border-2 border-primary shadow-lg ring-4 ring-primary/10">
-                            <AvatarFallback className="bg-primary/5 text-primary text-2xl font-bold">
-                                {callerName ? callerName[0].toUpperCase() : <User />}
-                            </AvatarFallback>
-                        </Avatar>
-                        {callStatus === 'connected' && (
-                            <motion.div
-                                animate={{ scale: [1, 1.2, 1] }}
-                                transition={{ repeat: Infinity, duration: 2 }}
-                                className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-green-500 border-2 border-card"
-                            />
-                        )}
+                <div className="bg-zinc-900 w-full max-w-sm rounded-[2.5rem] p-8 flex flex-col items-center gap-8 shadow-2xl border border-white/10 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent opacity-50" />
+
+                    <div className="relative z-10 flex flex-col items-center gap-4">
+                        <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center text-primary border-2 border-primary/30 animate-pulse">
+                            <User size={48} />
+                        </div>
+                        <div className="text-center">
+                            <h2 className="text-2xl font-bold text-white mb-1">{callerName || "Chamada"}</h2>
+                            <p className="text-zinc-400 capitalize flex items-center justify-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                                {callStatus === 'ringing' ? (isIncomingCall ? 'Recebendo...' : 'Tocando...') :
+                                    callStatus === 'calling' ? 'Chamando...' :
+                                        callStatus === 'connected' ? 'Em chamada' : 'Conectando...'}
+                            </p>
+                        </div>
                     </div>
 
-                    <div className="text-center">
-                        <h3 className="text-lg font-bold text-foreground">
-                            {callerName || "Chamada de Voz"}
-                        </h3>
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                            {callStatus === 'ringing' ? (isIncomingCall ? 'Recebendo chamada...' : 'Chamando...') :
-                                callStatus === 'connected' ? 'Em chamada' :
-                                    callStatus === 'calling' ? 'Iniciando...' : 'Desconectado'}
-                        </p>
-                    </div>
-
-                    <div className="flex gap-4">
-                        {isIncomingCall && callStatus === 'ringing' ? (
-                            <>
-                                <button
-                                    onClick={rejectCall}
-                                    className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-lg transition-transform hover:scale-110 active:scale-95"
-                                    title="Recusar"
-                                >
-                                    <PhoneOff className="h-6 w-6" />
-                                </button>
-                                <button
-                                    onClick={acceptCall}
-                                    className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500 text-white shadow-lg transition-transform hover:scale-110 active:scale-95"
-                                    title="Aceitar"
-                                >
-                                    <Phone className="h-6 w-6" />
-                                </button>
-                            </>
-                        ) : (
+                    <div className="relative z-10 flex flex-col gap-8 w-full">
+                        {/* Controles de Áudio (Mudo/Viva-voz) */}
+                        <div className="flex justify-center gap-6">
                             <button
-                                onClick={endCall}
-                                className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-lg transition-transform hover:scale-110 active:scale-95"
-                                title="Desligar"
+                                onClick={toggleMute}
+                                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isMuted ? 'bg-red-500 text-white' : 'bg-white/10 text-white hover:bg-white/20'
+                                    }`}
+                                title={isMuted ? "Desmutar" : "Mutar"}
                             >
-                                <PhoneOff className="h-6 w-6" />
+                                {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
                             </button>
-                        )}
+                            <button
+                                onClick={toggleSpeaker}
+                                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isSpeakerOn ? 'bg-primary text-white' : 'bg-white/10 text-white hover:bg-white/20'
+                                    }`}
+                                title={isSpeakerOn ? "Fone normal" : "Viva-voz"}
+                            >
+                                {isSpeakerOn ? <Volume2 size={24} /> : <Volume1 size={24} />}
+                            </button>
+                        </div>
+
+                        {/* Botões Principais */}
+                        <div className="flex justify-center gap-8">
+                            {isIncomingCall && callStatus === 'ringing' ? (
+                                <>
+                                    <button
+                                        onClick={rejectCall}
+                                        className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-white shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all hover:scale-110"
+                                    >
+                                        <X size={32} />
+                                    </button>
+                                    <button
+                                        onClick={acceptCall}
+                                        className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center text-white shadow-lg shadow-green-500/20 hover:bg-green-600 transition-all hover:scale-110"
+                                    >
+                                        <Phone size={32} />
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    onClick={endCall}
+                                    className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-white shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all hover:scale-110"
+                                >
+                                    <PhoneOff size={32} />
+                                </button>
+                            )}
+                        </div>
                     </div>
+
+                    <audio ref={audioRef} autoPlay playsInline style={{ display: 'none' }} />
                 </div>
-                {/* Audio invisível para a saída de voz */}
-                <audio ref={audioRef} autoPlay style={{ display: 'none' }} />
             </motion.div>
         </AnimatePresence>
     );

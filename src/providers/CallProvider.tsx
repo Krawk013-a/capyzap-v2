@@ -15,6 +15,10 @@ interface CallContextType {
     endCall: () => void;
     localStream: MediaStream | null;
     remoteStream: MediaStream | null;
+    isMuted: boolean;
+    isSpeakerOn: boolean;
+    toggleMute: () => void;
+    toggleSpeaker: () => void;
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
@@ -29,6 +33,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+    const [isMuted, setIsMuted] = useState(false);
+    const [isSpeakerOn, setIsSpeakerOn] = useState(false);
+
+    const ringtoneRef = useRef<HTMLAudioElement | null>(null);
+    const callingToneRef = useRef<HTMLAudioElement | null>(null);
 
     const statusRef = useRef<'idle' | 'calling' | 'ringing' | 'connected' | 'ended'>('idle');
     const peerConnection = useRef<RTCPeerConnection | null>(null);
@@ -51,6 +60,22 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         statusRef.current = callStatus;
     }, [callStatus]);
 
+    useEffect(() => {
+        if (!ringtoneRef.current) {
+            ringtoneRef.current = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
+            ringtoneRef.current.loop = true;
+        }
+        if (!callingToneRef.current) {
+            callingToneRef.current = new Audio("https://assets.mixkit.co/active_storage/sfx/135/135-preview.mp3");
+            callingToneRef.current.loop = true;
+        }
+
+        // Solicitar permissão de notificação
+        if (Notification.permission === "default") {
+            Notification.requestPermission();
+        }
+    }, []);
+
     const rtcConfig = {
         iceServers: [
             { urls: "stun:stun.l.google.com:19302" },
@@ -63,6 +88,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     const cleanup = useCallback(() => {
         console.log("[VoIP] Executando cleanup geral...");
+
+        // Parar sons
+        ringtoneRef.current?.pause();
+        if (ringtoneRef.current) ringtoneRef.current.currentTime = 0;
+        callingToneRef.current?.pause();
+        if (callingToneRef.current) callingToneRef.current.currentTime = 0;
+
         // Parar tracks locais
         if (localStream) {
             localStream.getTracks().forEach(track => {
@@ -90,7 +122,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         setCallerId(null);
         setCallerName(null);
         setCallStatus('idle');
-    }, [localStream]); // Mantemos localStream apenas para pará-lo, mas vamos melhorar isso
+        setIsMuted(false);
+        setIsSpeakerOn(false);
+    }, [localStream]);
 
     const subscribingChannels = useRef<Set<string>>(new Set());
 
@@ -235,6 +269,23 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                 setIsIncomingCall(true);
                 setCallStatus('ringing');
 
+                // Tocar Ringtone
+                ringtoneRef.current?.play().catch(e => console.warn("[VoIP] Erro ao tocar ringtone:", e));
+
+                // Notificação de background
+                if (document.hidden && Notification.permission === "granted") {
+                    const notif = new Notification("Chamada Recebida", {
+                        body: `${payload.fromName || "Alguém"} está ligando para você...`,
+                        icon: "/favicon.ico",
+                        tag: "incoming-call",
+                        requireInteraction: true
+                    });
+                    notif.onclick = () => {
+                        window.focus();
+                        notif.close();
+                    };
+                }
+
                 // Pré-configura o PeerConnection para estar pronto para o aceite
                 setupPeerConnection(payload.from);
             })
@@ -278,6 +329,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                             if (candidate) await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
                         }
                         setCallStatus('connected');
+                        callingToneRef.current?.pause();
                     } catch (e) {
                         console.error("[VoIP] Erro ao setar answer:", e);
                     }
@@ -320,6 +372,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             setCallerName(targetUserName);
             setIsCalling(true);
             setCallStatus('calling');
+
+            // Tocar Calling Tone
+            callingToneRef.current?.play().catch(e => console.warn("[VoIP] Erro ao tocar calling tone:", e));
 
             const pc = setupPeerConnection(targetUserId);
             stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -385,6 +440,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             setIsIncomingCall(false);
             setIsCalling(true);
             setCallStatus('connected');
+
+            // Para o Ringtone
+            ringtoneRef.current?.pause();
         } catch (err) {
             console.error("[VoIP] Erro ao aceitar chamada:", err);
             toast.error("Falha ao atender chamada.");
@@ -406,11 +464,30 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         cleanup();
     };
 
+    const toggleMute = () => {
+        if (localStream) {
+            const newState = !isMuted;
+            localStream.getAudioTracks().forEach(track => {
+                track.enabled = !newState;
+            });
+            setIsMuted(newState);
+        }
+    };
+
+    const toggleSpeaker = () => {
+        // No navegador normal, não há API direta para "viva-voz" sem setSinkId (que é desktop apenas)
+        // No mobile, o hardware geralmente troca sozinho quando o áudio toca no elemento <audio> principal
+        // Vamos apenas gerenciar o estado para a UI por enquanto.
+        setIsSpeakerOn(!isSpeakerOn);
+        toast.info(isSpeakerOn ? "Viva-voz desativado" : "Viva-voz ativado");
+    };
+
     return (
         <CallContext.Provider value={{
             isCalling, isIncomingCall, callerId, callerName, callStatus,
             initiateCall, acceptCall, rejectCall, endCall,
-            localStream, remoteStream
+            localStream, remoteStream,
+            isMuted, isSpeakerOn, toggleMute, toggleSpeaker
         }}>
             {children}
         </CallContext.Provider>
