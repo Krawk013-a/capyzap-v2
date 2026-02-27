@@ -16,6 +16,7 @@ interface RestoreKeysDialogProps {
 }
 
 export function RestoreKeysDialog({ open, encryptedKey, onRestored }: RestoreKeysDialogProps) {
+    console.log("[Crypto] RestoreKeysDialog MONTADO. Key length:", encryptedKey?.length);
     const [passphrase, setPassphrase] = useState("");
     const [loading, setLoading] = useState(false);
     const { signOut, profile } = useAuth();

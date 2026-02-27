@@ -95,10 +95,16 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
         setIsInitializing(true);
         try {
             console.log("[Crypto] Iniciando análise de chaves E2EE para:", user.email);
-            console.log("[Crypto] Dados do Perfil recebidos:", {
-                hasEncryptedKey: !!profile.encrypted_private_key,
-                hasSalt: !!profile.key_backup_salt,
-                hasPublicKey: !!profile.public_key
+            console.log("[Crypto] PERFIL COMPLETO:", profile);
+            console.log("[Crypto] Status das colunas:", {
+                encrypted_private_key: profile.encrypted_private_key ? "PRESENTE" : "AUSENTE",
+                key_backup_salt: profile.key_backup_salt ? "PRESENTE" : "AUSENTE",
+                public_key: profile.public_key ? "PRESENTE" : "AUSENTE"
+            });
+
+            // Debug visual para o usuário
+            import('sonner').then(({ toast }) => {
+                toast.info(`Perfil carregado: ${profile.encrypted_private_key ? 'Com Backup' : 'Sem Backup'}`);
             });
 
             // 1. Tentar pegar chaves locais
@@ -168,9 +174,16 @@ export function CryptoProvider({ children }: { children: React.ReactNode }) {
     }, [user, profile, isInitializing, authLoading]);
 
     useEffect(() => {
+        console.log("[Crypto] useEffect trigger:", {
+            hasUser: !!user,
+            isReady,
+            authLoading,
+            isInitializing,
+            hasProfile: !!profile
+        });
         if (!user || isReady || authLoading) return;
         initKeys();
-    }, [user, isReady, initKeys, authLoading]);
+    }, [user, isReady, initKeys, authLoading, profile]);
 
     const getOtherPublicKey = async (otherUserId: string): Promise<CryptoKey | null> => {
         try {
