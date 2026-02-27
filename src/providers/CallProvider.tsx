@@ -45,6 +45,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
     const isRemoteDescriptionSet = useRef<boolean>(false);
     const signalQueue = useRef<Promise<any>>(Promise.resolve());
+    const wakeLock = useRef<any>(null);
 
     // Refs para dados de usuário para estabilizar sinalização
     const userRef = useRef(user);
@@ -86,6 +87,25 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         iceCandidatePoolSize: 10,
     };
 
+    const requestWakeLock = async () => {
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLock.current = await (navigator as any).wakeLock.request('screen');
+                console.log("[VoIP] Wake Lock ativado (não deixará a tela apagar)");
+            }
+        } catch (err) {
+            console.warn("[VoIP] Falha ao ativar Wake Lock:", err);
+        }
+    };
+
+    const releaseWakeLock = () => {
+        if (wakeLock.current) {
+            wakeLock.current.release();
+            wakeLock.current = null;
+            console.log("[VoIP] Wake Lock liberado");
+        }
+    };
+
     const cleanup = useCallback(() => {
         console.log("[VoIP] Executando cleanup geral...");
 
@@ -95,21 +115,32 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         callingToneRef.current?.pause();
         if (callingToneRef.current) callingToneRef.current.currentTime = 0;
 
-        // Parar tracks locais
+        // Parar tracks locais AGRESSIVAMENTE
         if (localStream) {
             localStream.getTracks().forEach(track => {
+                track.enabled = false;
                 track.stop();
-                console.log("[VoIP] Track local parado:", track.kind);
+                console.log("[VoIP] Microfone DESLIGADO:", track.kind);
             });
             setLocalStream(null);
         }
 
-        setRemoteStream(null);
+        // Parar tracks remotos e limpar stream
+        if (remoteStream) {
+            remoteStream.getTracks().forEach(track => track.stop());
+            setRemoteStream(null);
+        }
 
         if (peerConnection.current) {
+            peerConnection.current.onicecandidate = null;
+            peerConnection.current.ontrack = null;
+            peerConnection.current.oniceconnectionstatechange = null;
             peerConnection.current.close();
             peerConnection.current = null;
         }
+
+        releaseWakeLock();
+
         if (activeSendChannel.current) {
             supabase.removeChannel(activeSendChannel.current);
             activeSendChannel.current = null;
@@ -124,7 +155,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         setCallStatus('idle');
         setIsMuted(false);
         setIsSpeakerOn(false);
-    }, [localStream]);
+    }, [localStream, remoteStream]);
 
     const subscribingChannels = useRef<Set<string>>(new Set());
 
@@ -268,6 +299,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                 setCallerName(payload.fromName || "Alguém");
                 setIsIncomingCall(true);
                 setCallStatus('ringing');
+                requestWakeLock();
 
                 // Tocar Ringtone
                 ringtoneRef.current?.play().catch(e => console.warn("[VoIP] Erro ao tocar ringtone:", e));
@@ -372,6 +404,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             setCallerName(targetUserName);
             setIsCalling(true);
             setCallStatus('calling');
+            requestWakeLock();
 
             // Tocar Calling Tone
             callingToneRef.current?.play().catch(e => console.warn("[VoIP] Erro ao tocar calling tone:", e));
@@ -474,12 +507,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const toggleSpeaker = () => {
-        // No navegador normal, não há API direta para "viva-voz" sem setSinkId (que é desktop apenas)
-        // No mobile, o hardware geralmente troca sozinho quando o áudio toca no elemento <audio> principal
-        // Vamos apenas gerenciar o estado para a UI por enquanto.
-        setIsSpeakerOn(!isSpeakerOn);
-        toast.info(isSpeakerOn ? "Viva-voz desativado" : "Viva-voz ativado");
+    const toggleSpeaker = async () => {
+        const newState = !isSpeakerOn;
+        setIsSpeakerOn(newState);
+
+        // No navegador normal desktop/android, podemos tentar setSinkId
+        // No iOS Safari, isso não existe, mas o estado serve para a UI
+        // O sistema geralmente chaveia se o volume for alto ou proximidade mudar.
+        toast.info(newState ? "Viva-voz ativado" : "Fone auricular ativado");
+        console.log("[VoIP] Toggle Speaker:", newState);
     };
 
     return (

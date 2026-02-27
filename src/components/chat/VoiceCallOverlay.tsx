@@ -112,7 +112,7 @@ export function VoiceCallOverlay() {
                         </div>
                     </div>
 
-                    <audio ref={audioRef} autoPlay playsInline style={{ display: 'none' }} />
+                    <audio ref={audioRef} autoPlay playsInline className="opacity-0 pointer-events-none absolute w-1 h-1" />
                 </div>
             </motion.div>
         </AnimatePresence>
