@@ -121,6 +121,14 @@ export function useConversations() {
       })
     );
 
+    // Ordenar por horário da última mensagem (mais recente primeiro)
+    enriched.sort((a, b) => {
+      if (!a.last_message_time && !b.last_message_time) return 0;
+      if (!a.last_message_time) return 1;
+      if (!b.last_message_time) return -1;
+      return new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime();
+    });
+
     setConversations(enriched);
     setLoading(false);
   }, [user]);
