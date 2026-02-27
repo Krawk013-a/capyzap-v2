@@ -16,11 +16,12 @@ export const CHANGELOG_HISTORY: ChangelogVersion[] = [
     date: "27 de Fev, 2026",
     title: "Correção de Bugs v0.12.1 🐛🔧",
     items: [
+      "⚠️ Mensagens Antigas: O objetivo desta atualização foi a correção de bugs previstos com a implementação da criptografia E2EE. Mensagens antigas podem continuar criptografadas com a necessidade de uso da chave de descriptografia. Novas mensagens serão criptografadas diretamente pelo Banco de Dados",
       "🔐 Correção de criptografia E2EE: Resolvido problema que impedia contas novas de ler mensagens",
       "🎨 Privacidade de Figurinhas: Figurinhas agora são visíveis apenas para quem as criou",
       "📋 Ordenação da Sidebar: Conversas agora seguem ordem cronológica correta",
       "🧹 Limpeza de logs: Removidos toasts e logs de debug desnecessários",
-      "⚠️ Mensagens Antigas: O objetivo desta atualização foi a correção de bugs previstos com a implementação da criptografia E2EE. Mensagens antigas podem continuar criptografadas com a necessidade de uso da chave de descriptografia. Novas mensagens serão criptografadas diretamente pelo Banco de Dados",
+      "💡 Tem uma sugestão?: Chame Enzo Silva e mande sua ideia",
     ]
   },
   {
