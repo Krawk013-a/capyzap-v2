@@ -36,6 +36,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
     const isRemoteDescriptionSet = useRef<boolean>(false);
 
+    // Refs para dados de usuário para estabilizar sinalização
+    const userRef = useRef(user);
+    const profileRef = useRef(profile);
+
+    useEffect(() => {
+        userRef.current = user;
+        profileRef.current = profile;
+    }, [user, profile]);
+
     // Sincroniza o ref com o estado para uso em listeners (evita re-subscrição de canais)
     useEffect(() => {
         statusRef.current = callStatus;
@@ -103,7 +112,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     const sendSignal = useCallback(async (targetId: string, event: string, payload: any) => {
         const channel = getSendChannel(targetId);
-        const fullPayload = { ...payload, from: user?.id, fromName: `${profile?.first_name || "Alguém"}`, to: targetId };
+        const currentUserId = userRef.current?.id;
+        const currentProfile = profileRef.current;
+        const fullPayload = { ...payload, from: currentUserId, fromName: `${currentProfile?.first_name || "Alguém"}`, to: targetId };
 
         console.log(`[VoIP] Preparando sinal: ${event} para ${targetId}`);
 
@@ -126,7 +137,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             if (channel.state === 'joined') {
                 doSend();
             } else if (subscribingChannels.current.has(targetId)) {
-                // Já estamos tentando inscrever, vamos checar periodicamente ou esperar
+                // Já estamos tentando inscrever, vamos checar periodicamente
                 const check = setInterval(() => {
                     if (channel.state === 'joined') {
                         clearInterval(check);
@@ -148,7 +159,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                 });
             }
         });
-    }, [user?.id, profile, getSendChannel]);
+    }, [getSendChannel]); // Dependência estável
 
     const setupPeerConnection = useCallback((targetId: string) => {
         if (peerConnection.current) return peerConnection.current;
@@ -283,14 +294,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                 toast.info("Chamada encerrada.");
             })
             .subscribe((status) => {
-                console.log(`[VoIP] Status do canal de recebimento (${user.id}):`, status);
+                console.log(`[VoIP] Status do canal de recebimento (${userRef.current?.id}):`, status);
             });
 
         return () => {
             console.log("[VoIP] Removendo canal de recebimento definitivo.");
             supabase.removeChannel(channel);
         };
-    }, [user, setupPeerConnection]); // REMOVIDO CLIENT-SIDE CLEANUP DAS DEPENDÊNCIAS
+    }, [user?.id, setupPeerConnection]); // APENAS user?.id como gatilho de subscrição
 
     const initiateCall = async (targetUserId: string, targetUserName: string) => {
         try {
@@ -307,7 +318,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             // CRÍTICO: Primeiro avisamos o outro lado
             console.log("[VoIP] Enviando sinal de início antes da oferta...");
             await sendSignal(targetUserId, "call:initiate", {
-                fromName: `${profile?.first_name || user?.user_metadata?.first_name || 'Alguém'}`
+                fromName: `${profileRef.current?.first_name || userRef.current?.user_metadata?.first_name || 'Alguém'}`
             });
 
             // Agora criamos a oferta
@@ -318,7 +329,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             console.log("[VoIP] Enviando oferta WebRTC...");
             await sendSignal(targetUserId, "call:offer", {
                 offer,
-                fromName: `${profile?.first_name || "Alguém"}`
+                fromName: `${profileRef.current?.first_name || "Alguém"}`
             });
 
         } catch (err) {
